@@ -37,6 +37,20 @@ const getUserByUniqueURL = async (req, res) => {
     });
 };
 
+const getUserCreatedGroups = async (req, res) => {
+    const { uniqueURL } = req.params;
+    const userWithId = await pool.query(queries.getUserByUniqueURL, [uniqueURL]);
+    
+    await pool.query(queries.getUserCreatedGroups, [userWithId.rows[0].id], (error, results) => {
+        if (error) throw error;
+
+        res.status(200).json({
+            success: true,
+            data: results.rows,
+        });
+    });
+}
+
 const createUser = async (req, res) => {
     const { email, fullName, password, city, latitude, longitude } = req.body;
     const unique_url = fullName.replace(/\s+/g, '-').toLowerCase() + '-' + Date.now();
@@ -318,6 +332,7 @@ const changePassword = async (req, res) => {
 module.exports = {
     getUsers,
     getUserByUniqueURL,
+    getUserCreatedGroups,
     createUser,
     loginUser,
     getLoggedInUser,

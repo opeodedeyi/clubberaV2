@@ -6,6 +6,7 @@ const router = Router();
 
 router.get('/', controller.getUsers);
 router.get('/:uniqueURL', controller.getUserByUniqueURL);
+router.get('/:uniqueURL/createdgroups', controller.getUserCreatedGroups);
 router.get('/auth/me', auth, controller.getLoggedInUser);
 router.get('/confirmemail/:id', controller.confirmEmail);
 router.post('/signup', controller.createUser);
@@ -17,8 +18,8 @@ router.post('/logoutall', auth, controller.logoutAll);
 router.post('/logoutall', auth, controller.logoutAll);
 router.patch('/update', auth, controller.updateUser);
 router.patch('/changepassword', auth, controller.changePassword);
-// set profile picture
-// request verification email
+// set profile picture, has to be loggedin
+// request verification email, has to be loggedin
 // goole login
 
 module.exports = router;

@@ -170,6 +170,15 @@ const updateUser = `
         is_active, created_at, updated_at
 `;
 
+const getUserCreatedGroups = `
+    SELECT
+        g.id, g.unique_url, g.title, g.description, g.banner_provider, g.banner_key, g.banner_location, g.city, g.latitude, g.longitude, g.is_private, g.created_at, g.updated_at
+    FROM
+        groups g
+    WHERE
+        g.owner_id = $1
+`;
+
 
 module.exports = {
     createToken,
@@ -187,4 +196,5 @@ module.exports = {
     getUserFromEmailConfirmToken,
     confirmEmail,
     updateUser,
+    getUserCreatedGroups,
 };
