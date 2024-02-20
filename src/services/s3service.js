@@ -46,6 +46,11 @@ const uploadToS3 = async (base64data, filename) => {
 
 
 const deleteFromS3 = async (key) => {
+    if (!key) {
+        console.log(`no image key provided`);
+        return;
+    }
+
     const params = {
         Bucket: process.env.AWS_BUCKET_NAME,
         Key: key

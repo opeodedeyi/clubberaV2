@@ -1,26 +1,56 @@
 const createGroup = `
     INSERT INTO groups (
-        unique_url, owner_id, title, description, banner_provider, 
-        banner_key, banner_location, city, latitude, longitude, is_private) 
+        unique_url, owner_id, title, description, is_private) 
     VALUES 
-        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        ($1, $2, $3, $4, $5)
     RETURNING 
-        id, unique_url, banner_location, created_at
+        id, unique_url, title
+`;
+
+const getAllGroups = `
+    SELECT
+        g.id, g.unique_url, g.title, g.description, l.city, b.location AS banner
+    FROM
+        groups g
+    LEFT JOIN
+        banners b
+    ON 
+        g.id = b.entity_id 
+    AND
+        b.entity_type = 'group'
+    LEFT JOIN
+        locations l
+    ON
+        g.id = l.entity_id
+    AND
+        l.entity_type = 'group'
 `;
 
 const getGroupByUniqueURL = `
-    SELECT * 
+    SELECT
+        g.*, l.id AS location_id, l.city, l.lat, l.lng,
+        b.id AS banner_id, b.location AS banner, b.key AS banner_key
     FROM 
-        groups 
+        groups g
+    JOIN
+        locations l
+    ON
+        g.id = l.entity_id
+    AND
+        l.entity_type = 'group'
+    LEFT JOIN
+        banners b
+    ON 
+        g.id = b.entity_id 
+    AND
+        b.entity_type = 'group'
     WHERE 
         unique_url = $1
 `;
 
 const getUserCreatedGroups = `
     SELECT
-        g.id, g.unique_url, g.title, g.description, 
-        g.banner_provider, g.banner_key, g.banner_location, 
-        g.city, g.latitude, g.longitude, 
+        g.id, g.unique_url, g.title, g.description,
         g.is_private, g.created_at, g.updated_at
     FROM
         groups g
@@ -35,19 +65,11 @@ const updateGroup = `
         title = COALESCE($2, title), 
         tagline = COALESCE($3, tagline),
         description = COALESCE($4, description), 
-        banner_provider = COALESCE($5, banner_provider), 
-        banner_key = COALESCE($6, banner_key), 
-        banner_location = COALESCE($7, banner_location), 
-        city = COALESCE($8, city), 
-        latitude = COALESCE($9, latitude), 
-        longitude = COALESCE($10, longitude), 
-        is_private = COALESCE($11, is_private)
+        is_private = COALESCE($5, is_private)
     WHERE
         unique_url = $1
     RETURNING 
         unique_url, title, description,
-        banner_provider, banner_key, banner_location,
-        city, latitude, longitude,
         is_private, created_at
 `;
 
@@ -97,7 +119,7 @@ const getAllMembers = `
     SELECT
         gm.id AS member_id, gm.created_at,
         u.id AS user_id, u.unique_url AS user_unique_url, 
-        u.full_name, u.email, u.photo_location AS user_photo_location
+        u.full_name, u.email
     FROM
         users u
     JOIN
@@ -112,7 +134,7 @@ const getAllRequests = `
     SELECT
         gr.id AS request_id, gr.created_at,
         u.id AS user_id, u.unique_url AS user_unique_url, 
-        u.full_name, u.email, u.photo_location AS user_photo_location
+        u.full_name, u.email
     FROM
         users u
     JOIN
@@ -126,6 +148,7 @@ const getAllRequests = `
 
 module.exports = {
     createGroup,
+    getAllGroups,
     getGroupByUniqueURL,
     getUserCreatedGroups,
     updateGroup,

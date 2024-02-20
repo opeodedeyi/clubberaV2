@@ -328,6 +328,53 @@ const changePassword = async (req, res) => {
     }
 }
 
+// const test = async (req, res) => {
+//     // test create image
+//     const { img } = req.body;
+
+//     try {
+//         if (img) {
+//             const data = await uploadToS3(img, 'test.jpg');
+//             console.log(data);
+//         }
+    
+//         res.status(200).json({
+//             success: true,
+//             message: 'Group controller test'
+//         });
+//     } catch (error) {
+//         console.error('Error:', error);
+//         return res.status(500).json({
+//             success: false,
+//             message: 'Internal Server Error',
+//         });
+//     }
+// }
+
+// const test = async (req, res) => {
+//     // test delete image
+//     const { key } = req.body;
+
+//     try {
+//         if (key) {
+//             const data = await deleteFromS3(key);
+//             console.log(data);
+//         }
+    
+//         res.status(200).json({
+//             success: true,
+//             message: 'Delete image test successful',
+//         });
+//     } catch (error) {
+//         console.error('Error:', error);
+//         return res.status(500).json({
+//             success: false,
+//             message: 'Internal Server Error',
+//         });
+//     }
+// }
+
+
 
 module.exports = {
     getUsers,
