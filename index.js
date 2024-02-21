@@ -2,6 +2,8 @@ const express = require('express');
 const userRoutes = require('./src/user/routes');
 const groupRoutes = require('./src/group/routes');
 const groupRequestRoutes = require('./src/grouprequest/routes');
+const announcementRoutes = require('./src/announcement/routes');
+const discussionRoutes = require('./src/discussion/routes');
 const app = express();
 require('dotenv').config();
 var cors = require('cors');
@@ -22,5 +24,7 @@ app.get('/', (req, res) => {
 app.use('/api/user', userRoutes);
 app.use('/api/group', groupRoutes);
 app.use('/api/grouprequest', groupRequestRoutes);
+app.use('/api/announcement', announcementRoutes);
+app.use('/api/discussion', discussionRoutes);
 
 app.listen(port, () => console.log(`app listening on port ${port}`));

@@ -4,12 +4,12 @@ const createGroup = `
     VALUES 
         ($1, $2, $3, $4, $5)
     RETURNING 
-        id, unique_url, title
+        id, unique_url, title, description, created_at
 `;
 
 const getAllGroups = `
     SELECT
-        g.id, g.unique_url, g.title, g.description, l.city, b.location AS banner
+        g.id, g.unique_url, g.title, g.description, l.city AS location, b.location AS banner, g.created_at
     FROM
         groups g
     LEFT JOIN
@@ -28,7 +28,7 @@ const getAllGroups = `
 
 const getGroupByUniqueURL = `
     SELECT
-        g.*, l.id AS location_id, l.city, l.lat, l.lng,
+        g.*, l.id AS location_id, l.city AS location, l.lat, l.lng,
         b.id AS banner_id, b.location AS banner, b.key AS banner_key
     FROM 
         groups g

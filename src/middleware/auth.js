@@ -27,6 +27,14 @@ const auth = async (req, res, next) => {
     }
 };
 
+const isLoggedIn = (req, res) => {
+    try {
+
+    } catch (e) {
+        
+    }
+}
+
 
 module.exports = {
     auth,

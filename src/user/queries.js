@@ -172,9 +172,23 @@ const updateUser = `
 
 const getUserCreatedGroups = `
     SELECT
-        g.id, g.unique_url, g.title, g.description, g.banner_provider, g.banner_key, g.banner_location, g.city, g.latitude, g.longitude, g.is_private, g.created_at, g.updated_at
+        g.id, g.unique_url, g.title, g.description,
+        g.is_private, g.created_at, g.updated_at,
+        l.city AS location, b.location AS banner
     FROM
         groups g
+    JOIN
+        locations l
+    ON
+        g.id = l.entity_id
+    AND
+        l.entity_type = 'group'
+    LEFT JOIN
+        banners b
+    ON
+        g.id = b.entity_id
+    AND
+        b.entity_type = 'group'
     WHERE
         g.owner_id = $1
 `;

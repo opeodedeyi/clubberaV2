@@ -12,13 +12,13 @@ async function addTopics(entity_type, entity_id, topics) {
         await pool.query(queries.addTopic, [topic, entity_type, entity_id]);
     }
     const result = await getTopics(entity_type, entity_id);
-    console.log('topics added');
     return result;
 }
 
 async function updateTopics(entity_type, entity_id, topics) {
     await queries.removeUnwantedTopics(entity_type, entity_id, topics);
-    await addTopics(entity_type, entity_id, topics);
+    const addedTopics = await addTopics(entity_type, entity_id, topics);
+    return addedTopics;
 }
 
 module.exports = {
