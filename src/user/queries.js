@@ -12,35 +12,60 @@ const getUsers =
     
 const getUserById = `
     SELECT 
-        id, full_name, email, unique_url, bio, gender, city, latitude, longitude, 
-        photo_provider, photo_key, photo_location, birthday, is_email_confirmed, 
-        is_active, created_at, updated_at
+        u.id, u.full_name, u.email, u.unique_url, u.bio,
+        u.gender, u.birthday, u.is_email_confirmed, u.is_active,
+        u.created_at, l.address AS location,
+        b.location AS banner, b.key AS banner_key
     FROM 
-        users 
+        users u
+    LEFT JOIN
+        locations l
+    ON
+        u.id = l.entity_id
+    AND
+        l.entity_type = 'user'
+    LEFT JOIN
+        banners b
+    ON
+        u.id = b.entity_id
+    AND
+        b.entity_type = 'user'
     WHERE 
-        id = $1
+        u.id = $1
 `;
 
 const getUserByEmail = `
     SELECT 
-        id, full_name, email, unique_url, bio, password, gender, city, latitude, longitude, 
-        photo_provider, photo_key, photo_location, birthday, is_email_confirmed, 
-        is_active, created_at, updated_at
+        u.id, u.full_name, u.email, u.password, u.unique_url, u.bio,
+        u.gender, u.birthday, u.is_email_confirmed, 
+        u.is_active, u.created_at
     FROM 
-        users 
+        users u
     WHERE 
-        email = $1
+        u.email = $1
 `;
 
 const getUserByUniqueURL = `
     SELECT 
-        id, full_name, email, unique_url, bio, gender, city, latitude, longitude, 
-        photo_provider, photo_key, photo_location, birthday, is_email_confirmed, 
-        is_active, created_at, updated_at
+        u.id, u.full_name, u.email, u.unique_url, u.bio,
+        u.gender, u.birthday, u.is_email_confirmed, 
+        u.is_active, u.created_at, l.address AS location
     FROM 
-        users 
+        users u
+    LEFT JOIN
+        locations l
+    ON
+        u.id = l.entity_id
+    AND
+        l.entity_type = 'user'
+    LEFT JOIN
+        banners b
+    ON
+        u.id = b.entity_id
+    AND
+        b.entity_type = 'user'
     WHERE 
-        unique_url = $1
+        u.unique_url = $1
 `;
 
 const checkEmailExists = `
@@ -53,26 +78,25 @@ const checkEmailExists = `
 
 const createUser = `
     INSERT INTO users (
-        email, full_name, password, city, latitude, longitude, unique_url) 
+        email, full_name, password, unique_url) 
     VALUES 
-        ($1, $2, $3, $4, $5, $6, $7) 
+        ($1, $2, $3, $4)
     RETURNING 
-        id, full_name, email, unique_url, bio, gender, city, latitude, longitude, 
-        photo_provider, photo_key, photo_location, birthday, is_email_confirmed, 
-        is_active, created_at, updated_at
+        id, full_name, email, unique_url, is_email_confirmed, 
+        is_active, created_at
 `;
 
 const addEmailConfirmTokenToUserProfile = `
     UPDATE 
-        users
+        users u
     SET
         email_confirm_token = $1
     WHERE
         id = $2
-    RETURNING 
-        id, full_name, email, unique_url, bio, gender, city, latitude, longitude, 
-        photo_provider, photo_key, photo_location, birthday, is_email_confirmed, 
-        is_active, created_at, updated_at
+    RETURNING
+        u.id, u.full_name, u.email, u.unique_url, u.bio,
+        u.gender, u.birthday, u.is_email_confirmed,
+        u.is_active, u.created_at
 `;
 
 const addPasswordResetTokenToUserProfile = `
@@ -83,31 +107,42 @@ const addPasswordResetTokenToUserProfile = `
     WHERE
         id = $2
     RETURNING 
-        id, full_name, email, unique_url, bio, gender, city, latitude, longitude, 
-        photo_provider, photo_key, photo_location, birthday, is_email_confirmed, 
-        is_active, created_at, updated_at
+        id, full_name, email, unique_url, bio, gender,
+        birthday, is_email_confirmed, is_active, created_at
 `;
 
 const getUserFromUserToken = `
     SELECT 
-        u.id, u.full_name, u.email, u.unique_url, u.bio, u.password, u.gender, u.city, u.latitude, u.longitude, u.
-        photo_provider, u.photo_key, u.photo_location, u.birthday, u.is_email_confirmed, u.
-        is_active, u.created_at, u.updated_at 
+        u.id, u.full_name, u.email, u.unique_url, u.bio, u.password, 
+        u.gender, u.birthday, u.is_email_confirmed, u.is_active, 
+        u.created_at, u.updated_at , l.address AS location,
+        b.location AS banner, b.key AS banner_key
     FROM 
         users u
     INNER JOIN 
         user_tokens ut 
     ON 
         u.id = ut.user_id
+    LEFT JOIN
+        locations l
+    ON
+        u.id = l.entity_id
+    AND
+        l.entity_type = 'user'
+    LEFT JOIN
+        banners b
+    ON
+        u.id = b.entity_id
+    AND
+        b.entity_type = 'user'
     WHERE 
         ut.token = $1
 `;
 
 const getUserFromPasswordResetToken = `
     SELECT 
-        id, full_name, email, unique_url, bio, password, gender, city, latitude, longitude, 
-        photo_provider, photo_key, photo_location, birthday, is_email_confirmed, 
-        is_active, created_at, updated_at
+        id, full_name, email, unique_url, bio, password, gender,
+        birthday, is_email_confirmed, is_active, created_at
     FROM 
         users 
     WHERE 
@@ -122,16 +157,14 @@ const updatePasswordFromId = `
     WHERE
         id = $2
     RETURNING 
-        id, full_name, email, unique_url, bio, gender, city, latitude, longitude, 
-        photo_provider, photo_key, photo_location, birthday, is_email_confirmed, 
-        is_active, created_at, updated_at
+        id, full_name, email, unique_url, bio, gender, 
+        birthday, is_email_confirmed, is_active, created_at
 `;
 
 const getUserFromEmailConfirmToken = `
     SELECT 
-        id, full_name, email, unique_url, bio, password, gender, city, latitude, longitude, 
-        photo_provider, photo_key, photo_location, birthday, is_email_confirmed, 
-        is_active, created_at, updated_at
+        id, full_name, email, unique_url, bio, password, gender,
+        birthday, is_email_confirmed, is_active, created_at
     FROM 
         users 
     WHERE 
@@ -146,9 +179,8 @@ const confirmEmail = `
     WHERE
         id = $1
     RETURNING 
-        id, full_name, email, unique_url, bio, gender, city, latitude, longitude, 
-        photo_provider, photo_key, photo_location, birthday, is_email_confirmed, 
-        is_active, created_at, updated_at
+        id, full_name, email, unique_url, bio, gender,
+        birthday, is_email_confirmed, is_active, created_at
 `;
 
 const updateUser = `
@@ -157,24 +189,20 @@ const updateUser = `
     SET
         full_name = COALESCE($2, full_name), 
         bio = COALESCE($3, bio), 
-        gender = COALESCE($4, gender), 
-        city = COALESCE($5, city), 
-        latitude = COALESCE($6, latitude), 
-        longitude = COALESCE($7, longitude), 
-        birthday = COALESCE($8, birthday)
+        gender = COALESCE($4, gender),
+        birthday = COALESCE($5, birthday)
     WHERE
         id = $1
     RETURNING 
-        id, full_name, email, unique_url, bio, gender, city, latitude, longitude, 
-        photo_provider, photo_key, photo_location, birthday, is_email_confirmed, 
-        is_active, created_at, updated_at
+        id, full_name, email, unique_url, bio, gender, 
+        birthday, is_email_confirmed, is_active, created_at
 `;
 
 const getUserCreatedGroups = `
     SELECT
         g.id, g.unique_url, g.title, g.description,
         g.is_private, g.created_at, g.updated_at,
-        l.city AS location, b.location AS banner
+        l.address AS location, b.location AS banner
     FROM
         groups g
     JOIN

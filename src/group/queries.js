@@ -9,7 +9,7 @@ const createGroup = `
 
 const getAllGroups = `
     SELECT
-        g.id, g.unique_url, g.title, g.description, l.city AS location, b.location AS banner, g.created_at
+        g.id, g.unique_url, g.title, g.description, l.address AS location, b.location AS banner, g.created_at
     FROM
         groups g
     LEFT JOIN
@@ -28,7 +28,7 @@ const getAllGroups = `
 
 const getGroupByUniqueURL = `
     SELECT
-        g.*, l.id AS location_id, l.city AS location, l.lat, l.lng,
+        g.*, l.id AS location_id, l.address AS location, l.lat, l.lng,
         b.id AS banner_id, b.location AS banner, b.key AS banner_key
     FROM 
         groups g

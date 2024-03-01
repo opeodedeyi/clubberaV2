@@ -2,7 +2,7 @@ const pool = require('../../db');
 
 const findLocation = `
     SELECT 
-        id AS location_id, city, address, lat, lng
+        id AS location_id, address, lat, lng
     FROM 
         locations 
     WHERE
@@ -10,18 +10,16 @@ const findLocation = `
     AND
         entity_id = $2
     AND
-        city = $3
+        address = $3
     AND 
-        address = $4
+        lat = $4
     AND 
-        lat = $5
-    AND 
-        lng = $6
+        lng = $5
 `;
 
 const findLocationByEntityOnly = `
     SELECT
-        id AS location_id, city, address, lat, lng
+        id AS location_id, address, lat, lng
     FROM
         locations
     WHERE
@@ -32,25 +30,24 @@ const findLocationByEntityOnly = `
 
 const createLocation = `
     INSERT INTO 
-        locations (entity_type, entity_id, city, address, lat, lng) 
+        locations (entity_type, entity_id, address, lat, lng) 
     VALUES 
-        ($1, $2, $3, $4, $5, $6) 
+        ($1, $2, $3, $4, $5) 
     RETURNING 
-        id AS location_id, city, address, lat, lng
+        id AS location_id, address, lat, lng
 `;
 
 const updateLocation = `
     UPDATE 
-        locations 
-    SET 
-        city = $2, 
-        address = $3, 
-        lat = $4, 
-        lng = $5
+        locations
+    SET
+        address = $2,
+        lat = $3,
+        lng = $4
     WHERE
         id = $1
     RETURNING 
-        id AS location_id, city, address, lat, lng
+        id AS location_id, address, lat, lng
 `;
 
 const createBanner = `

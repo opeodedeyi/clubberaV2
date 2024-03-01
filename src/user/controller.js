@@ -1,6 +1,9 @@
 const pool = require('../../db');
 const queries = require('./queries');
 const tokenQueries = require('../token/queries');
+const locationdb = require('../utils/location');
+const bannerdb = require('../utils/banner');
+const { uploadToS3, deleteFromS3 } = require('../services/s3service');
 const { securePassword, comparePasswords } = require('../services/passwordservice');
 const { generateAuthToken, generateEmailConfirmToken, generatePasswordResetToken } = require('../services/tokenservice');
 const { sendConfirmationEmail, sendPasswordResetEmail } = require('../services/emailservice');
@@ -52,11 +55,12 @@ const getUserCreatedGroups = async (req, res) => {
 }
 
 const createUser = async (req, res) => {
-    const { email, fullName, password, city, latitude, longitude } = req.body;
+    const { email, fullName, password, city, lat, lng } = req.body;
     const unique_url = fullName.replace(/\s+/g, '-').toLowerCase() + '-' + Date.now();
 
     try {
         const emailExistsResult = await pool.query(queries.checkEmailExists, [email]);
+        let createdLocation = null;
 
         if (emailExistsResult.rows.length) {
             return res.status(409).json({
@@ -66,19 +70,30 @@ const createUser = async (req, res) => {
         };
         
         const hashedPassword = await securePassword(password);
-        const createdUser = await pool.query(queries.createUser, [email, fullName, hashedPassword, city, latitude, longitude, unique_url]);
+        const createdUser = await pool.query(queries.createUser, [email, fullName, hashedPassword, unique_url]);
+
+        if (city) {
+            createdLocation = await locationdb.createLocation('user', createdUser.rows[0].id, city, lat, lng);
+        }
+
         const token = await generateAuthToken(createdUser.rows[0]);
         const createdToken = await pool.query(tokenQueries.createToken, [createdUser.rows[0].id, token]);
         const emailConfirmToken = await generateEmailConfirmToken(createdUser.rows[0]);
         const updatedUser = await pool.query(queries.addEmailConfirmTokenToUserProfile, [emailConfirmToken, createdUser.rows[0].id]);
         await sendConfirmationEmail(email, emailConfirmToken);
 
-        res.status(201).json({
+        const responseObject = {
             success: true,
             message: 'User created',
             user: updatedUser.rows[0],
             token: createdToken.rows[0].token,
-        });
+        };
+
+        if (createdLocation?.rows[0]) {
+            responseObject.user.location = createdLocation.rows[0].address;
+        }
+
+        res.status(201).json(responseObject);
     } catch (error) {
         console.error('Error:', error);
         return res.status(500).json({
@@ -99,6 +114,8 @@ const loginUser = async (req, res) => {
                 message: 'User not found',
             });
         };
+
+        console.log('user', user.rows[0]);
 
         const isPasswordValid = await comparePasswords(user.rows[0], password);
         if (!isPasswordValid) {
@@ -157,13 +174,12 @@ const resetPassword = async (req, res) => {
         };
 
         const token = await generatePasswordResetToken(user.rows[0]);
-        const updatedUser = await pool.query(queries.addPasswordResetTokenToUserProfile, [token, user.rows[0].id]);
+        await pool.query(queries.addPasswordResetTokenToUserProfile, [token, user.rows[0].id]);
         await sendPasswordResetEmail(email, token);
 
         res.status(200).json({
             success: true,
-            message: 'Password reset email sent',
-            user: updatedUser.rows[0],
+            message: 'Password reset email sent'
         });
     } catch (error) {
         console.error('Error:', error);
@@ -278,15 +294,30 @@ const confirmEmail = async (req, res) => {
 
 const updateUser = async (req, res) => {
     const { user } = req;
-    const { fullName, bio, gender, city, latitude, longitude, birthday } = req.body;
+    const { fullName, bio, gender, city, lat, lng, avatar, birthday } = req.body;
 
     try {
-        const updatedUser = await pool.query(queries.updateUser, [user.rows[0].id, fullName, bio, gender, city, latitude, longitude, birthday]);
-        res.status(200).json({
+        const updatedUser = await pool.query(queries.updateUser, [user.rows[0].id, fullName, bio, gender, birthday]);
+        let bannerData = null;
+        let createdLocation = null;
+
+        if (city) {
+            createdLocation = await locationdb.findThenUpdateOrCreateLocation('user', user.rows[0].id, city, lat, lng);
+        }
+
+        if (avatar) {
+            await deleteFromS3(user.rows[0].banner_key);
+            const data = await uploadToS3(avatar, `${user.rows[0].unique_url}-banner.jpg`);
+            bannerData = await bannerdb.createOrUpdateBanner('user', user.rows[0].id, data.key, data.location);
+        }
+
+        const responseObject = {
             success: true,
             message: 'User updated',
             user: updatedUser.rows[0],
-        });
+        };
+
+        res.status(200).json(responseObject);
     } catch (error) {
         console.error('Error:', error);
         return res.status(500).json({

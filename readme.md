@@ -66,17 +66,12 @@ Most api usage were done on the frontend.
 
 ## Tasks To Be Done
 
-- [ ] login with google and setting profile photo using AWS.
-- [ ] Renaming the fields in the group schema to closely relate to what it will be named on the frontend and make migrations also.
-- [ ] When users try to sign up or login, success or error message tellig them exactly what happened to show up
-- [ ] Feature to add an event to a group, and users should be able to create an event if they are creators of that community, delete, and update.
-- [ ] Regarding the event, a seperate route to get all upcoming events, past events that have ended.
+- [ ] login with google and setting profile photo
+- [ ] A seperate route to get all upcoming events.
+- [ ] A seperate route to get all past events.
 - [ ] Also, when gettig all upcoming events it should be sorted by showing the events with the closest dates first and the ones starting later show later.
-
-
-## Known bugs
-
-when trying to create a community it fails. it only works when i use postman. if anyone can help review what i did and make improvements, please 
+- [ ] search for event with pagination, by title description and topics
+- [ ] search for event with pagination, by title description and topics
 
 
 ## Contributing

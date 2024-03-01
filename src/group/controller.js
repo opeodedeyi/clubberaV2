@@ -33,7 +33,7 @@ const createGroup = async (req, res) => {
         let createdLocation = null;
         let createdTopics = null;
 
-        createdLocation = await locationdb.createLocation('group', result.rows[0].id, city, null, lat, lng);
+        createdLocation = await locationdb.createLocation('group', result.rows[0].id, city, lat, lng);
 
         if (banner) {
             const data = await uploadToS3(banner, `${unique_url}-banner.jpg`);
@@ -50,7 +50,7 @@ const createGroup = async (req, res) => {
         };
 
         if (createdLocation?.rows[0]) {
-            responseObject.group.location = createdLocation.rows[0].city;
+            responseObject.group.location = createdLocation.rows[0].address;
         }
 
         if (bannerData?.rows[0]) {
@@ -106,7 +106,7 @@ const updateGroup = async (req, res) => {
         console.log({city, lat, lng});
         if (city && lat && lng) {
             console.log(group.rows[0].id);
-            updatedLocation = await locationdb.findThenUpdateOrCreateLocation('group', group.rows[0].id, city, null, lat, lng);
+            updatedLocation = await locationdb.findThenUpdateOrCreateLocation('group', group.rows[0].id, city, lat, lng);
         }
         if (banner) {
             await deleteFromS3(group.rows[0].banner_key);
@@ -123,7 +123,7 @@ const updateGroup = async (req, res) => {
         };
 
         if (updatedLocation?.rows[0]) {
-            responseObject.group.location = updatedLocation.rows[0].city;
+            responseObject.group.location = updatedLocation.rows[0].address;
         }
 
         if (bannerData?.rows[0]) {

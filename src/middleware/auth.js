@@ -8,8 +8,11 @@ require('dotenv').config();
 const auth = async (req, res, next) => {
     try {
         const token = req.header('Authorization').replace('Bearer ', '');
+        console.log('token', token);
         const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+        console.log('decoded', decoded);
         const user = await pool.query(userQueries.getUserById, [decoded.id]);
+        console.log('user', user.rows[0]);
         const tokenExists = await pool.query(tokenQueries.checkTokenExists, [token]);
 
         if (tokenExists.rows.length === 0) {

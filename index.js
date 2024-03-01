@@ -4,6 +4,8 @@ const groupRoutes = require('./src/group/routes');
 const groupRequestRoutes = require('./src/grouprequest/routes');
 const announcementRoutes = require('./src/announcement/routes');
 const discussionRoutes = require('./src/discussion/routes');
+const meetingRoutes = require('./src/meeting/routes');
+const meetingActionRoutes = require('./src/meetingaction/routes');
 const app = express();
 require('dotenv').config();
 var cors = require('cors');
@@ -26,5 +28,8 @@ app.use('/api/group', groupRoutes);
 app.use('/api/grouprequest', groupRequestRoutes);
 app.use('/api/announcement', announcementRoutes);
 app.use('/api/discussion', discussionRoutes);
+app.use('/api/meeting', meetingRoutes);
+app.use('/api/meetingaction', meetingActionRoutes);
+
 
 app.listen(port, () => console.log(`app listening on port ${port}`));

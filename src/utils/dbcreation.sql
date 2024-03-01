@@ -3,7 +3,6 @@ CREATE TABLE locations (
     id SERIAL PRIMARY KEY,
     entity_type VARCHAR(50) NOT NULL,
     entity_id INTEGER,
-    city VARCHAR(255),
     lat NUMERIC,
     lng NUMERIC,
     address TEXT,
