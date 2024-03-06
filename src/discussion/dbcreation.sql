@@ -10,3 +10,4 @@ CREATE TABLE discussions (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (parent_id) REFERENCES discussions(id) ON DELETE CASCADE
 );
+-- created

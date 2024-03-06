@@ -11,6 +11,7 @@ router.get('/auth/me', auth, controller.getLoggedInUser);
 router.get('/confirmemail/:id', controller.confirmEmail);
 router.post('/signup', controller.createUser);
 router.post('/login', controller.loginUser);
+router.post('googleauth', controller.googleAuth);
 router.post('/resetpassword', controller.resetPassword);
 router.post('/resetpassword/:id', controller.resetPasswordSetPassword);
 router.post('/logout', auth, controller.logout);

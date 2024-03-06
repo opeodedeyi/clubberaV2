@@ -8,14 +8,33 @@ const createToken = `
 `;
 
 const getUsers = 
-    `SELECT * FROM users`;
+    `SELECT
+        u.id, u.full_name, u.email, u.unique_url, u.bio,
+        u.gender, u.birthday, u.is_email_confirmed, u.is_active,
+        u.created_at, l.address AS location,
+        b.location AS avatar, b.key AS banner_key
+    FROM
+        users u
+    LEFT JOIN
+        locations l
+    ON
+        u.id = l.entity_id
+    AND
+        l.entity_type = 'user'
+    LEFT JOIN
+        banners b
+    ON
+        u.id = b.entity_id
+    AND
+        b.entity_type = 'user'
+`;
     
 const getUserById = `
     SELECT 
         u.id, u.full_name, u.email, u.unique_url, u.bio,
         u.gender, u.birthday, u.is_email_confirmed, u.is_active,
         u.created_at, l.address AS location,
-        b.location AS banner, b.key AS banner_key
+        b.location AS avatar, b.key AS banner_key
     FROM 
         users u
     LEFT JOIN
@@ -49,7 +68,8 @@ const getUserByUniqueURL = `
     SELECT 
         u.id, u.full_name, u.email, u.unique_url, u.bio,
         u.gender, u.birthday, u.is_email_confirmed, 
-        u.is_active, u.created_at, l.address AS location
+        u.is_active, u.created_at, l.address AS location,
+        b.location AS avatar
     FROM 
         users u
     LEFT JOIN
@@ -69,12 +89,27 @@ const getUserByUniqueURL = `
 `;
 
 const checkEmailExists = `
-    SELECT 
-        s 
+    SELECT
+        u.id, u.full_name, u.email, u.unique_url, u.bio,
+        u.gender, u.birthday, u.is_email_confirmed, u.is_active,
+        u.created_at, l.address AS location,
+        b.location AS avatar, b.key AS banner_key
     FROM 
-        users s 
+        users u
+    LEFT JOIN
+        locations l
+    ON
+        u.id = l.entity_id
+    AND
+        l.entity_type = 'user'
+    LEFT JOIN
+        banners b
+    ON
+        u.id = b.entity_id
+    AND
+        b.entity_type = 'user'
     WHERE 
-        s.email = $1`;
+        u.email = $1`;
 
 const createUser = `
     INSERT INTO users (
@@ -82,6 +117,16 @@ const createUser = `
     VALUES 
         ($1, $2, $3, $4)
     RETURNING 
+        id, full_name, email, unique_url, is_email_confirmed, 
+        is_active, created_at
+`;
+
+const createGoogleUser = `
+    INSERT INTO users (
+        email, full_name, password, unique_url) 
+    VALUES
+        ($1, $2, $3, $4)
+    RETURNING
         id, full_name, email, unique_url, is_email_confirmed, 
         is_active, created_at
 `;
@@ -116,12 +161,12 @@ const getUserFromUserToken = `
         u.id, u.full_name, u.email, u.unique_url, u.bio, u.password, 
         u.gender, u.birthday, u.is_email_confirmed, u.is_active, 
         u.created_at, u.updated_at , l.address AS location,
-        b.location AS banner, b.key AS banner_key
-    FROM 
+        b.location AS avatar, b.key AS banner_key
+    FROM
         users u
-    INNER JOIN 
-        user_tokens ut 
-    ON 
+    INNER JOIN
+        user_tokens ut
+    ON
         u.id = ut.user_id
     LEFT JOIN
         locations l
@@ -135,7 +180,7 @@ const getUserFromUserToken = `
         u.id = b.entity_id
     AND
         b.entity_type = 'user'
-    WHERE 
+    WHERE
         ut.token = $1
 `;
 
@@ -202,7 +247,7 @@ const getUserCreatedGroups = `
     SELECT
         g.id, g.unique_url, g.title, g.description,
         g.is_private, g.created_at, g.updated_at,
-        l.address AS location, b.location AS banner
+        l.address AS location, b.location AS avatar
     FROM
         groups g
     JOIN
@@ -230,6 +275,7 @@ module.exports = {
     getUserByUniqueURL,
     checkEmailExists,
     createUser,
+    createGoogleUser,
     addEmailConfirmTokenToUserProfile,
     addPasswordResetTokenToUserProfile,
     getUserFromUserToken,

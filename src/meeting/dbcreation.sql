@@ -1,7 +1,7 @@
--- this file is what was used in the psql shell to crete the database and tables
+-- this file is what was used in the psql shell to create the database and tables
 CREATE TABLE meetings (
     id SERIAL PRIMARY KEY,
-    unique_url VARCHAR(255) UNIQUE;
+    unique_url VARCHAR(255) UNIQUE,
     group_id INTEGER NOT NULL REFERENCES groups(id),
     title VARCHAR(255) NOT NULL,
     description TEXT,
@@ -11,3 +11,4 @@ CREATE TABLE meetings (
     capacity INTEGER CHECK (capacity >= 0),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+-- created

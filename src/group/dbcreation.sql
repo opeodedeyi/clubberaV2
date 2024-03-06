@@ -23,11 +23,11 @@ CREATE TABLE group_requests (
     id SERIAL PRIMARY KEY,
     group_id INTEGER NOT NULL REFERENCES groups(id),
     user_id INTEGER NOT NULL REFERENCES users(id),
-    -- message TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (group_id, user_id)
 );
 
+-- created
 -- Not Done
 
 CREATE TABLE group_banned_users (

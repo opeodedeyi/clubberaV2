@@ -1,4 +1,5 @@
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 
 
 const securePassword = async (password) => {
@@ -16,8 +17,13 @@ const comparePasswords = async (user, password) => {
     return isMatch;
 }
 
+function generateRandomPassword(length) {
+    return crypto.randomBytes(length).toString('hex');
+}
+
 
 module.exports = {
     securePassword,
     comparePasswords,
+    generateRandomPassword
 };

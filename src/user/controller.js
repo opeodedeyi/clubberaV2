@@ -3,8 +3,10 @@ const queries = require('./queries');
 const tokenQueries = require('../token/queries');
 const locationdb = require('../utils/location');
 const bannerdb = require('../utils/banner');
+const { OAuth2Client } = require('google-auth-library');
 const { uploadToS3, deleteFromS3 } = require('../services/s3service');
-const { securePassword, comparePasswords } = require('../services/passwordservice');
+const { securePassword, comparePasswords, generateRandomPassword } = require('../services/passwordservice');
+const { getGoogleIdToken, verifyGoogleToken } = require('../services/googleLoginService');
 const { generateAuthToken, generateEmailConfirmToken, generatePasswordResetToken } = require('../services/tokenservice');
 const { sendConfirmationEmail, sendPasswordResetEmail } = require('../services/emailservice');
 
@@ -359,52 +361,49 @@ const changePassword = async (req, res) => {
     }
 }
 
-// const test = async (req, res) => {
-//     // test create image
-//     const { img } = req.body;
+const googleAuth = async (req, res) => {
+    try {
+        const idToken = await getGoogleIdToken(req.body.code)
+        const payload = await verifyGoogleToken(idToken);
+        const { email, name, picture } = payload;
 
-//     try {
-//         if (img) {
-//             const data = await uploadToS3(img, 'test.jpg');
-//             console.log(data);
-//         }
-    
-//         res.status(200).json({
-//             success: true,
-//             message: 'Group controller test'
-//         });
-//     } catch (error) {
-//         console.error('Error:', error);
-//         return res.status(500).json({
-//             success: false,
-//             message: 'Internal Server Error',
-//         });
-//     }
-// }
+        console.log('payload', payload);
+        
+        let user = await pool.query(queries.checkEmailExists, [email]);
+        console.log('existing user', user.rows[0]);
+        let bannerData = null;
+        let createdLocation = null;
 
-// const test = async (req, res) => {
-//     // test delete image
-//     const { key } = req.body;
+        if (user.rows.length === 0) {
+            user = await pool.query(queries.createUser, [email, name, hashedPassword, unique_url]);
+            console.log('created user', user.rows[0]);
+            // upload the photo to s3 and save the key and location to the banner table
+            // create a location for the user
+        }
 
-//     try {
-//         if (key) {
-//             const data = await deleteFromS3(key);
-//             console.log(data);
-//         }
-    
-//         res.status(200).json({
-//             success: true,
-//             message: 'Delete image test successful',
-//         });
-//     } catch (error) {
-//         console.error('Error:', error);
-//         return res.status(500).json({
-//             success: false,
-//             message: 'Internal Server Error',
-//         });
-//     }
-// }
+        if (user.rows[0].is_email_confirmed === false) {
+            // confirm email
+        }
 
+        // generate auth token
+        // send email to user
+        res.status(200).json({ user, token, message: 'User logged in with Google' });
+        const responseObject = {
+            success: true,
+            message: 'User logged in with Google',
+            user: updatedUser.rows[0],
+            // token: createdToken.rows[0].token,
+        };
+
+        res.status(200).json(responseObject);
+    } catch (error) {
+        console.error('Error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal Server Error',
+        });
+    }
+}
 
 
 module.exports = {
@@ -421,4 +420,5 @@ module.exports = {
     confirmEmail,
     updateUser,
     changePassword,
+    googleAuth
 };

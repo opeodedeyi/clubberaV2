@@ -6,3 +6,4 @@ CREATE TABLE meeting_participation (
     indication_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (meeting_id, user_id)
 );
+-- created
