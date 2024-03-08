@@ -90,6 +90,30 @@ const getGroupByUniqueURL = async (req, res) => {
     }
 }
 
+const getGroupEditByUniqueURL = async (req, res) => {
+    try {
+        const group = req.group;
+        const topics = await topicdb.getTopics('group', group.rows[0].id);
+
+        const responseObject = {
+            success: true,
+            group: group.rows[0]
+        };
+
+        if (topics?.rows) {
+            responseObject.group.topics = topics.rows.map(topicRow => topicRow.name);
+        }
+
+        res.status(200).json(responseObject);
+    } catch (error) {
+        console.error('Error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal Server Error',
+        });
+    }
+}
+
 const updateGroup = async (req, res) => {
     const { groupUniqueURL } = req.params;
     const { title, tagline, description, city, lat, lng, is_private, topics, banner } = req.body;
@@ -234,6 +258,7 @@ module.exports = {
     getAllGroups,
     createGroup,
     getGroupByUniqueURL,
+    getGroupEditByUniqueURL,
     updateGroup,
     joinGroup,
     leaveGroup,

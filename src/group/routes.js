@@ -7,6 +7,7 @@ const router = Router();
 
 router.get('/', controller.getAllGroups);
 router.get('/:groupUniqueURL', groupExists, controller.getGroupByUniqueURL);
+router.get('/:groupUniqueURL/edit', auth, groupExists, isGroupOwner, controller.getGroupEditByUniqueURL);
 router.get('/:groupUniqueURL/members', groupExists, controller.getAllMembers);
 router.get('/:groupUniqueURL/requests', groupExists, controller.getAllRequests);
 router.post('/create', auth, controller.createGroup);
