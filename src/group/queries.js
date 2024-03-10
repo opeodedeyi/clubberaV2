@@ -29,7 +29,7 @@ const getAllGroups = `
 const getGroupByUniqueURL = `
     SELECT
         g.id, g.unique_url, g.title, g.tagline, g.description, g.owner_id, g.is_private,
-        l.address AS location, b.location AS banner,
+        l.address AS location, l.lat, l.lng, b.location AS banner,
         (SELECT COUNT(*)
             FROM group_members gm
             WHERE gm.group_id = g.id) AS member_count
