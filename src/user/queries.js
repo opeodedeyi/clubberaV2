@@ -123,9 +123,9 @@ const createUser = `
 
 const createGoogleUser = `
     INSERT INTO users (
-        email, full_name, password, unique_url) 
+        email, full_name, password, unique_url, is_email_confirmed) 
     VALUES
-        ($1, $2, $3, $4)
+        ($1, $2, $3, $4, true)
     RETURNING
         id, full_name, email, unique_url, is_email_confirmed, 
         is_active, created_at
@@ -223,9 +223,9 @@ const confirmEmail = `
         is_email_confirmed = true
     WHERE
         id = $1
-    RETURNING 
-        id, full_name, email, unique_url, bio, gender,
-        birthday, is_email_confirmed, is_active, created_at
+    RETURNING
+        id, full_name, email, unique_url, is_email_confirmed, 
+        is_active, created_at
 `;
 
 const updateUser = `

@@ -363,37 +363,46 @@ const changePassword = async (req, res) => {
 
 const googleAuth = async (req, res) => {
     try {
-        const idToken = await getGoogleIdToken(req.body.code)
+        const idToken = req.body.code
         const payload = await verifyGoogleToken(idToken);
         const { email, name, picture } = payload;
-
-        console.log('payload', payload);
         
         let user = await pool.query(queries.checkEmailExists, [email]);
-        console.log('existing user', user.rows[0]);
-        let bannerData = null;
-        let createdLocation = null;
+        let avatar = null;
 
         if (user.rows.length === 0) {
-            user = await pool.query(queries.createUser, [email, name, hashedPassword, unique_url]);
-            console.log('created user', user.rows[0]);
-            // upload the photo to s3 and save the key and location to the banner table
-            // create a location for the user
+            const password = generateRandomPassword(16);
+            const hashedPassword = await securePassword(password);
+            const unique_url = name.replace(/\s+/g, '-').toLowerCase() + '-' + Date.now();
+
+            user = await pool.query(queries.createGoogleUser, [email, name, hashedPassword, unique_url]);
+            
+            if (picture) {
+                avatar = await bannerdb.createBanner('user', user.rows[0].id, 'google', picture, picture);
+            }
+
+            // send welcome email to user
         }
 
         if (user.rows[0].is_email_confirmed === false) {
-            // confirm email
+            const confirmUser = await pool.query(queries.confirmEmail, [user.rows[0].id]);
+            user.rows[0] = confirmUser.rows[0];
         }
+        
 
-        // generate auth token
-        // send email to user
-        res.status(200).json({ user, token, message: 'User logged in with Google' });
+        const token = await generateAuthToken(user.rows[0]);
+        const createdToken = await pool.query(tokenQueries.createToken, [user.rows[0].id, token]);
+
         const responseObject = {
             success: true,
             message: 'User logged in with Google',
-            user: updatedUser.rows[0],
-            // token: createdToken.rows[0].token,
+            user: user.rows[0],
+            token: createdToken.rows[0].token,
         };
+        
+        if (avatar) {
+            responseObject.user.avatar = avatar.rows[0].banner;
+        }
 
         res.status(200).json(responseObject);
     } catch (error) {
