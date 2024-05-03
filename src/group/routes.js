@@ -1,12 +1,12 @@
 const { Router } = require('express');
-const { auth } = require('../middleware/auth');
+const { auth, optauth } = require('../middleware/auth');
 const { groupExists, isGroupOwner } = require('../middleware/groupCheck');
 const controller = require('./controller');
 const router = Router();
 
 
-router.get('/', controller.getAllGroups);
-router.get('/:groupUniqueURL', groupExists, controller.getGroupByUniqueURL);
+router.get('/', optauth, controller.getAllGroups);
+router.get('/:groupUniqueURL', optauth, groupExists, controller.getGroupByUniqueURL);
 router.get('/:groupUniqueURL/edit', auth, groupExists, isGroupOwner, controller.getGroupEditByUniqueURL);
 router.get('/:groupUniqueURL/members', groupExists, controller.getAllMembers);
 router.get('/:groupUniqueURL/requests', groupExists, controller.getAllRequests);

@@ -30,15 +30,34 @@ const auth = async (req, res, next) => {
     }
 };
 
-const isLoggedIn = (req, res) => {
+const optauth = async (req, res, next) => {
     try {
+        const token = req.header('Authorization').replace('Bearer ', '');
+        if (token) {
+            console.log('token', token);
+            const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
+            console.log('decoded', decoded);
+            const userResult = await pool.query(userQueries.getUserById, [decoded.id]);
 
+            if (userResult.rows.length > 0) {
+                const user = userResult.rows[0];
+                console.log('user', user);
+                const tokenExists = await pool.query(tokenQueries.checkTokenExists, [token]);
+
+                if (tokenExists.rows.length > 0) {
+                    req.token = token;
+                    req.user = user;
+                }
+            }
+        }
     } catch (e) {
-        
+        console.log('Authentication/Authorization failed:', e.message);
     }
+    next();
 }
 
 
 module.exports = {
     auth,
+    optauth
 };

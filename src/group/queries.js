@@ -148,6 +148,17 @@ const getAllRequests = `
         gr.group_id = $1
 `;
 
+const checkGroupMembership = `
+    SELECT
+        1
+    FROM
+        group_members gm
+    WHERE
+        gm.group_id = $1
+    AND
+        gm.user_id = $2
+`;
+
 
 module.exports = {
     createGroup,
@@ -160,5 +171,6 @@ module.exports = {
     leaveGroup,
     removeGroupRequest,
     getAllMembers,
-    getAllRequests
+    getAllRequests,
+    checkGroupMembership
 };

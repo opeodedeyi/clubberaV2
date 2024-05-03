@@ -32,9 +32,21 @@ const acceptRequest = `
         group_id, created_at, user_id
 `;
 
+const checkGroupRequest = `
+    SELECT
+        1
+    FROM
+        group_requests
+    WHERE
+        group_id = $1
+    AND
+        user_id = $2
+`
+
 
 module.exports = {
     getRequestById,
     removeRequest,
-    acceptRequest
+    acceptRequest,
+    checkGroupRequest
 };

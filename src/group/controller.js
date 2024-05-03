@@ -1,5 +1,6 @@
 const pool = require('../../db');
 const queries = require('./queries');
+const grouprequestqueries = require('../grouprequest/queries');
 const locationdb = require('../utils/location');
 const bannerdb = require('../utils/banner');
 const topicdb = require('../utils/topic');
@@ -7,6 +8,9 @@ const { uploadToS3, deleteFromS3 } = require('../services/s3service');
 
 
 const getAllGroups = async (req, res) => {
+    const { user } = req;
+    console.log('user - ', user);
+
     try {
         const result = await pool.query(queries.getAllGroups);
         res.status(200).json({
@@ -72,11 +76,36 @@ const createGroup = async (req, res) => {
 }
 
 const getGroupByUniqueURL = async (req, res) => {
-    // if user exists, check if user is a member of the group as membershipStatus
+    const { user } = req;
+    let isMember = 'not-member'; // not-member, member, pending, owner
 
     try {
         const group = req.group
-        
+
+        if (user) {
+            if (user.id === group.rows[0].owner_id) {
+                isMember = 'owner';
+            } else {
+                const memberCheck = await pool.query(
+                    queries.checkGroupMembership, 
+                    [group.rows[0].id, user.id]
+                );
+    
+                if (memberCheck.rowCount > 0) {
+                    isMember = 'member';
+                } else {
+                    const requestCheck = await pool.query(
+                        grouprequestqueries.checkGroupRequest, 
+                        [group.rows[0].id, user.id]
+                    );
+                    if (requestCheck.rowCount > 0) {
+                        isMember = 'pending';
+                    }
+                }
+            }
+        }
+
+        group.rows[0].isMember = isMember;
         res.status(200).json({
             success: true,
             group: group.rows[0]
