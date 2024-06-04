@@ -48,6 +48,7 @@ const createMeeting = async (req, res) => {
 }
 
 const getMeetingByUniqueURL = async (req, res) => {
+    //incomplete
     const { meeting } = req;
     try {
         res.status(200).json({
