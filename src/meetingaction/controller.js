@@ -29,6 +29,7 @@ const attendMeeting = async (req, res) => {
 }
 
 const getMeetingAttendees = async (req, res) => {
+    // incomplete
     const { meeting } = req;
     try {
         const result = await pool.query(queries.getMeetingAttendees, [meeting.rows[0].id]);

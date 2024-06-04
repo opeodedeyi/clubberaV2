@@ -21,6 +21,5 @@ router.patch('/update', auth, controller.updateUser);
 router.patch('/changepassword', auth, controller.changePassword);
 // set profile picture, has to be loggedin
 // request verification email, has to be loggedin
-// goole login
 
 module.exports = router;

@@ -16,3 +16,5 @@ router.post('/:groupUniqueURL/leavegroup', auth, groupExists, controller.leaveGr
 router.patch('/:groupUniqueURL/update', auth, groupExists, isGroupOwner, controller.updateGroup);
 
 module.exports = router;
+
+// search and filter for all groups
