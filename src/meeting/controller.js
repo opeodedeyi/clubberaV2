@@ -47,22 +47,80 @@ const createMeeting = async (req, res) => {
     }
 }
 
+// const getMeetingByUniqueURL = async (req, res) => {
+//     //incomplete
+//     const { meeting } = req;
+//     try {
+//         res.status(200).json({
+//             success: true,
+//             meeting: meeting.rows[0]
+//         });
+//     } catch (error) {
+//         console.error('Error:', error);
+//         return res.status(500).json({
+//             success: false,
+//             message: 'Internal Server Error',
+//         });
+//     }
+// }
+
+
+
+
 const getMeetingByUniqueURL = async (req, res) => {
-    //incomplete
-    const { meeting } = req;
     try {
+        const { meeting } = req; 
+
+        const results = await pool.query(queries.getMeetingByUniqueURL, [meeting]);
+
+        if (results.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Meeting not found',
+            });
+        }
+
         res.status(200).json({
             success: true,
-            meeting: meeting.rows[0]
+            meeting: results.rows[0]
         });
     } catch (error) {
-        console.error('Error:', error);
-        return res.status(500).json({
+        res.status(500).json({
             success: false,
             message: 'Internal Server Error',
         });
     }
-}
+};
+
+
+
+const getUpcomingGroupMeetings = async (req, res) => {
+    try {
+        const { uniqueURL } = req.params; 
+
+        const results = await pool.query(queries.getUpcomingGroupMeetings, [uniqueURL]);
+
+        if (results.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Meeting not found',
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            meeting: results.rows[0]
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Internal Server Error',
+        });
+    }
+};
+
+
+
 
 const getAllGroupMeetings = async (req, res) => {
     const { group } = req;
@@ -126,6 +184,7 @@ const updateMeeting = async (req, res) => {
 module.exports = {
     createMeeting,
     getMeetingByUniqueURL,
+    getUpcomingGroupMeetings,
     getAllGroupMeetings,
     updateMeeting
 };
