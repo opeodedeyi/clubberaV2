@@ -120,32 +120,46 @@ const removeGroupRequest = `
 
 const getAllMembers = `
     SELECT
-        gm.id AS member_id, gm.created_at,
-        u.id AS user_id, u.unique_url AS user_unique_url, 
-        u.full_name, u.email
+        u.id,
+        u.full_name,
+        u.email,
+        u.unique_url,
+        gm.created_at AS date_joined,
+        b.location AS avatar,
+        l.address AS location
     FROM
         users u
     JOIN
-        group_members gm
-    ON
-        u.id = gm.user_id
+        group_members gm ON u.id = gm.user_id
+    LEFT JOIN
+        banners b ON u.id = b.entity_id AND b.entity_type = 'user'
+    LEFT JOIN
+        locations l ON u.id = l.entity_id AND l.entity_type = 'user'
     WHERE
         gm.group_id = $1
+    ORDER BY
+        gm.created_at DESC
 `;
 
 const getAllRequests = `
     SELECT
         gr.id AS request_id, gr.created_at,
         u.id AS user_id, u.unique_url AS user_unique_url, 
-        u.full_name, u.email
+        u.full_name, u.email,
+        b.location AS avatar,
+        l.address AS user_location
     FROM
         users u
     JOIN
-        group_requests gr
-    ON
-        u.id = gr.user_id
+        group_requests gr ON u.id = gr.user_id
+    LEFT JOIN
+        banners b ON u.id = b.entity_id AND b.entity_type = 'user'
+    LEFT JOIN
+        locations l ON u.id = l.entity_id AND l.entity_type = 'user'
     WHERE
         gr.group_id = $1
+    ORDER BY
+        gr.created_at DESC
 `;
 
 const checkGroupMembership = `

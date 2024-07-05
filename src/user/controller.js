@@ -3,10 +3,9 @@ const queries = require('./queries');
 const tokenQueries = require('../token/queries');
 const locationdb = require('../utils/location');
 const bannerdb = require('../utils/banner');
-const { OAuth2Client } = require('google-auth-library');
 const { uploadToS3, deleteFromS3 } = require('../services/s3service');
 const { securePassword, comparePasswords, generateRandomPassword } = require('../services/passwordservice');
-const { getGoogleIdToken, verifyGoogleToken } = require('../services/googleLoginService');
+const { verifyGoogleToken } = require('../services/googleLoginService');
 const { generateAuthToken, generateEmailConfirmToken, generatePasswordResetToken } = require('../services/tokenservice');
 const { sendConfirmationEmail, sendPasswordResetEmail } = require('../services/emailservice');
 
@@ -113,7 +112,7 @@ const loginUser = async (req, res) => {
         if (user.rows.length === 0) {
             return res.status(404).json({
                 success: false,
-                message: 'User not found',
+                message: 'User does not exist',
             });
         };
 

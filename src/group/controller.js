@@ -1,5 +1,6 @@
 const pool = require('../../db');
 const queries = require('./queries');
+const { getTimeDifference } = require('../utils/timeUtils');
 const grouprequestqueries = require('../grouprequest/queries');
 const locationdb = require('../utils/location');
 const bannerdb = require('../utils/banner');
@@ -252,9 +253,20 @@ const getAllMembers = async (req, res) => {
         const group = req.group;
 
         const result = await pool.query(queries.getAllMembers, [group.rows[0].id]);
+        
+        const members = result.rows.map(row => ({
+            id: row.id,
+            full_name: row.full_name,
+            email: row.email,
+            unique_url: row.unique_url,
+            date_joined: row.date_joined,
+            avatar: row.avatar || null,
+            location: row.address || null
+        }));
+
         return res.status(200).json({
             success: true,
-            members: result.rows
+            members: members
         });
     } catch (error) {
         console.error('Error:', error);
@@ -270,9 +282,20 @@ const getAllRequests = async (req, res) => {
         const group = req.group;
 
         const result = await pool.query(queries.getAllRequests, [group.rows[0].id]);
+        
+        const processedRequests = result.rows.map(row => ({
+            id: row.user_id,
+            fullName: row.full_name,
+            email: row.email,
+            uniqueUrl: row.user_unique_url,
+            avatar: row.avatar || null,
+            location: row.user_location || null,
+            requestedAt: getTimeDifference(new Date(row.created_at))
+        }));
+
         return res.status(200).json({
             success: true,
-            requests: result.rows
+            requests: processedRequests
         });
     } catch (error) {
         console.error('Error:', error);
@@ -281,7 +304,8 @@ const getAllRequests = async (req, res) => {
             message: 'Internal Server Error',
         });
     }
-}
+};
+
 
 module.exports = {
     getAllGroups,

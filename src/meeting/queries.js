@@ -164,11 +164,6 @@ const getUpcomingGroupMeetings = `
 `;
 
 
-
-
-
-
-
 const getAllGroupMeetings = `
     SELECT
         m.id, m.unique_url, m.title, m.description, m.date_of_meeting, m.time_of_meeting, m.duration, m.capacity,
