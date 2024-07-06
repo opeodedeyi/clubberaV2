@@ -284,7 +284,7 @@ const getAllRequests = async (req, res) => {
         const result = await pool.query(queries.getAllRequests, [group.rows[0].id]);
         
         const processedRequests = result.rows.map(row => ({
-            id: row.user_id,
+            id: row.request_id,
             fullName: row.full_name,
             email: row.email,
             uniqueUrl: row.user_unique_url,
