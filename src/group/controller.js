@@ -82,6 +82,7 @@ const getGroupByUniqueURL = async (req, res) => {
 
     try {
         const group = req.group
+        console.log('group - ', group);
 
         if (user) {
             if (user.id === group.rows[0].owner_id) {

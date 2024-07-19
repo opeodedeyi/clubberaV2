@@ -6,27 +6,37 @@ const { uploadToS3, deleteFromS3 } = require('../services/s3service');
 
 
 const createMeeting = async (req, res) => {
-    const { group } = req;
-    const { title, description, date_of_meeting, time_of_meeting, duration, capacity, banner, location, lat, lng } = req.body;
-    const unique_url = title.replace(/\s+/g, '-').toLowerCase() + '-' + Date.now();
-
+    const client = await pool.connect();
     try {
-        const result = await pool.query(queries.createMeeting, [unique_url, group.rows[0].id, title, description, date_of_meeting, time_of_meeting, duration, capacity]);
+        await client.query('BEGIN');
+
+        const { group } = req;
+        const { title, description, date_of_meeting, time_of_meeting, duration, capacity, banner, location, lat, lng } = req.body;
+        const unique_url = title.replace(/\s+/g, '-').toLowerCase() + '-' + Date.now();
+
+        // Create meeting
+        const result = await client.query(queries.createMeeting, [unique_url, group.rows[0].id, title, description, date_of_meeting, time_of_meeting, duration, capacity]);
+        const meeting = result.rows[0];
+
         let bannerData = null;
         let createdLocation = null;
         
+        // Upload banner to S3 (outside of transaction)
         if (banner) {
             const data = await uploadToS3(banner, `${unique_url}-banner.jpg`);
-            bannerData = await bannerdb.createBanner('meeting', result.rows[0].id, 'aws', data.key, data.location);
+            bannerData = await bannerdb.clientCreateBanner(client, 'meeting', meeting.id, 'aws', data.key, data.location);
         }
 
+        // Create location
         if (location) {
-            createdLocation = await locationdb.createLocation('meeting', result.rows[0].id, location, lat, lng);
+            createdLocation = await locationdb.clientCreateLocation(client, 'meeting', meeting.id, location, lat, lng);
         }
+
+        await client.query('COMMIT');
 
         const responseObject = {
             success: true,
-            meeting: result.rows[0]
+            meeting: meeting
         };
 
         if (createdLocation?.rows[0]) {
@@ -39,11 +49,14 @@ const createMeeting = async (req, res) => {
 
         res.status(201).json(responseObject);
     } catch (error) {
+        await client.query('ROLLBACK');
         console.error('Error:', error);
         return res.status(500).json({
             success: false,
             message: 'Internal Server Error',
         });
+    } finally {
+        client.release();
     }
 }
 

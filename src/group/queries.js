@@ -30,25 +30,21 @@ const getGroupByUniqueURL = `
     SELECT
         g.id, g.unique_url, g.title, g.tagline, g.description, g.owner_id, g.is_private,
         l.address AS location, l.lat, l.lng, b.location AS banner,
+        u.full_name AS host_name,
+        (SELECT location FROM banners WHERE entity_type = 'user' AND entity_id = g.owner_id) AS host_avatar,
         (SELECT COUNT(*)
             FROM group_members gm
             WHERE gm.group_id = g.id) AS member_count
     FROM 
         groups g
-    JOIN
-        locations l
-    ON
-        g.id = l.entity_id
-    AND
-        l.entity_type = 'group'
+    JOIN 
+        locations l ON g.id = l.entity_id AND l.entity_type = 'group'
     LEFT JOIN
-        banners b
-    ON 
-        g.id = b.entity_id 
-    AND
-        b.entity_type = 'group'
+        banners b ON g.id = b.entity_id AND b.entity_type = 'group'
+    JOIN
+        users u ON g.owner_id = u.id
     WHERE 
-        unique_url = $1
+        g.unique_url = $1
 `;
 
 const getUserCreatedGroups = `
