@@ -7,6 +7,11 @@ async function createBanner(entity_type, entity_id, provider, key, location) {
     return newBanner;
 }
 
+async function clientCreateBanner(client, entity_type, entity_id, provider, key, location) {
+    const newBanner = await client.query(queries.createBanner, [entity_type, entity_id, provider, key, location]);
+    return newBanner;
+}
+
 async function updateBanner(id, provider, key, location) {
     const updatedBanner = await pool.query(queries.updateBanner, [id, provider, key, location]);
     return updatedBanner;
@@ -23,6 +28,7 @@ async function createOrUpdateBanner(entity_type, entity_id, provider, key, locat
 }
 
 module.exports = {
+    clientCreateBanner,
     createBanner,
     updateBanner,
     createOrUpdateBanner
