@@ -29,6 +29,11 @@ async function createLocation(entity_type, entity_id, address, lat, lng) {
     return newLocation;
 }
 
+async function clientCreateLocation(client, entity_type, entity_id, address, lat, lng) {
+    const newLocation = await client.query(queries.createLocation, [entity_type, entity_id, address, lat, lng]);
+    return newLocation;
+}
+
 async function updateLocationById(id, address, lat, lng) {
     const updatedLocation = await pool.query(queries.updateLocation, [id, address, lat, lng]);
     return updatedLocation;
@@ -37,6 +42,7 @@ async function updateLocationById(id, address, lat, lng) {
 module.exports = {
     findOrCreateLocation,
     findThenUpdateOrCreateLocation,
+    clientCreateLocation,
     createLocation,
     updateLocationById
 };

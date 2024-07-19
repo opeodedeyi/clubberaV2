@@ -18,9 +18,10 @@ const groupExists = async (req, res, next) => {
         req.group = group;
         next();
     } catch (e) {
-        return res.status(401).json({
+        console.error('Error in groupExists middleware:', e);
+        return res.status(500).json({
             success: false,
-            message: 'Please login first.',
+            message: 'An error occurred while processing your request.',
         });
     }
 }
