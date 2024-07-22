@@ -7,6 +7,7 @@ const router = Router();
 router.get('/', controller.getUsers);
 router.get('/:uniqueURL', controller.getUserByUniqueURL);
 router.get('/:uniqueURL/createdgroups', controller.getUserCreatedGroups);
+router.get('/:uniqueURL/joinedgroups', controller.getUserJoinedGroups);
 router.get('/auth/me', auth, controller.getLoggedInUser);
 router.get('/confirmemail/:id', controller.confirmEmail);
 router.post('/signup', controller.createUser);
