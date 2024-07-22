@@ -32,9 +32,8 @@ const auth = async (req, res, next) => {
 
 const optauth = async (req, res, next) => {
     try {
-        const authHeader = req.header('Authorization');
-        if (authHeader && authHeader.startsWith('Bearer ')) {
-            const token = authHeader.replace('Bearer ', '');
+        const token = req.header('Authorization').replace('Bearer ', '');
+        if (token) {
             console.log('token', token);
             const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
             console.log('decoded', decoded);
@@ -53,7 +52,6 @@ const optauth = async (req, res, next) => {
         }
     } catch (e) {
         console.log('Authentication/Authorization failed:', e.message);
-        // Do not set req.user or req.token if there's an error
     }
     next();
 }

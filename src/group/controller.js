@@ -252,10 +252,16 @@ const leaveGroup = async (req, res) => {
 const getAllMembers = async (req, res) => {
     try {
         const group = req.group;
+        const { page = 1, limit = 10 } = req.query; // Default to page 1 with 10 items per page
 
-        const result = await pool.query(queries.getAllMembers, [group.rows[0].id]);
+        const offset = (page - 1) * limit;
+
+        const membersResult = await pool.query(queries.getAllMembers, [group.rows[0].id, limit, offset]);
+        const countResult = await pool.query(queries.getAllMembersCount, [group.rows[0].id]);
+
+        const totalMembers = parseInt(countResult.rows[0].count);
         
-        const members = result.rows.map(row => ({
+        const members = membersResult.rows.map(row => ({
             id: row.id,
             full_name: row.full_name,
             email: row.email,
@@ -267,7 +273,13 @@ const getAllMembers = async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            members: members
+            members: members,
+            pagination: {
+                currentPage: parseInt(page),
+                itemsPerPage: parseInt(limit),
+                totalItems: totalMembers,
+                totalPages: Math.ceil(totalMembers / limit)
+            }
         });
     } catch (error) {
         console.error('Error:', error);
@@ -281,10 +293,16 @@ const getAllMembers = async (req, res) => {
 const getAllRequests = async (req, res) => {
     try {
         const group = req.group;
+        const { page = 1, limit = 10 } = req.query; // Default to page 1 with 10 items per page
 
-        const result = await pool.query(queries.getAllRequests, [group.rows[0].id]);
+        const offset = (page - 1) * limit;
+
+        const requestsResult = await pool.query(queries.getAllRequests, [group.rows[0].id, limit, offset]);
+        const countResult = await pool.query(queries.getAllRequestsCount, [group.rows[0].id]);
+
+        const totalRequests = parseInt(countResult.rows[0].count);
         
-        const processedRequests = result.rows.map(row => ({
+        const processedRequests = requestsResult.rows.map(row => ({
             id: row.request_id,
             fullName: row.full_name,
             email: row.email,
@@ -296,7 +314,13 @@ const getAllRequests = async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            requests: processedRequests
+            requests: processedRequests,
+            pagination: {
+                currentPage: parseInt(page),
+                itemsPerPage: parseInt(limit),
+                totalItems: totalRequests,
+                totalPages: Math.ceil(totalRequests / limit)
+            }
         });
     } catch (error) {
         console.error('Error:', error);
