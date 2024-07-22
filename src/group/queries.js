@@ -135,6 +135,13 @@ const getAllMembers = `
         gm.group_id = $1
     ORDER BY
         gm.created_at DESC
+    LIMIT $2 OFFSET $3
+`;
+
+const getAllMembersCount = `
+    SELECT COUNT(*) as count
+    FROM group_members
+    WHERE group_id = $1
 `;
 
 const getAllRequests = `
@@ -156,6 +163,13 @@ const getAllRequests = `
         gr.group_id = $1
     ORDER BY
         gr.created_at DESC
+    LIMIT $2 OFFSET $3
+`;
+
+const getAllRequestsCount = `
+    SELECT COUNT(*) as count
+    FROM group_requests
+    WHERE group_id = $1
 `;
 
 const checkGroupMembership = `
@@ -181,6 +195,8 @@ module.exports = {
     leaveGroup,
     removeGroupRequest,
     getAllMembers,
+    getAllMembersCount,
     getAllRequests,
+    getAllRequestsCount,
     checkGroupMembership
 };

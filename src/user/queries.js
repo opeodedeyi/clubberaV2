@@ -244,26 +244,82 @@ const updateUser = `
 `;
 
 const getUserCreatedGroups = `
-    SELECT
-        g.id, g.unique_url, g.title, g.description,
-        g.is_private, g.created_at, g.updated_at,
-        l.address AS location, b.location AS avatar
-    FROM
-        groups g
-    JOIN
-        locations l
-    ON
-        g.id = l.entity_id
-    AND
-        l.entity_type = 'group'
-    LEFT JOIN
-        banners b
-    ON
-        g.id = b.entity_id
-    AND
-        b.entity_type = 'group'
-    WHERE
-        g.owner_id = $1
+    WITH group_info AS (
+        SELECT 
+            g.id, g.title, g.tagline, g.description, g.is_private,
+            l.address AS location,
+            g.created_at AS date_joined,
+            COUNT(DISTINCT gm.user_id) AS total_members
+        FROM 
+            groups g
+        LEFT JOIN 
+            locations l ON g.id = l.entity_id AND l.entity_type = 'group'
+        LEFT JOIN 
+            group_members gm ON g.id = gm.group_id
+        WHERE 
+            g.owner_id = $1
+        GROUP BY 
+            g.id, g.title, g.tagline, g.description, g.is_private, l.address, g.created_at
+    )
+    SELECT 
+        gi.*,
+        ARRAY_AGG(b.location) FILTER (WHERE b.location IS NOT NULL) AS member_avatars
+    FROM 
+        group_info gi
+    LEFT JOIN 
+        group_members gm ON gi.id = gm.group_id
+    LEFT JOIN 
+        banners b ON gm.user_id = b.entity_id AND b.entity_type = 'user'
+    GROUP BY 
+        gi.id, gi.title, gi.tagline, gi.description, gi.is_private, gi.location, gi.date_joined, gi.total_members
+    ORDER BY gi.date_joined DESC
+    LIMIT $2 OFFSET $3
+`;
+
+const getUserCreatedGroupsCount = `
+    SELECT COUNT(*) as count
+    FROM groups
+    WHERE owner_id = $1
+`;
+
+const getUserJoinedGroups = `
+    WITH group_info AS (
+        SELECT 
+            g.id, g.title, g.tagline, g.description, g.is_private,
+            l.address AS location,
+            gm.created_at AS date_joined,
+            COUNT(DISTINCT gm2.user_id) AS total_members
+        FROM 
+            groups g
+        JOIN 
+            group_members gm ON g.id = gm.group_id AND gm.user_id = $1
+        LEFT JOIN 
+            locations l ON g.id = l.entity_id AND l.entity_type = 'group'
+        LEFT JOIN 
+            group_members gm2 ON g.id = gm2.group_id
+        GROUP BY 
+            g.id, g.title, g.tagline, g.description, g.is_private, l.address, gm.created_at
+    )
+    SELECT 
+        gi.*,
+        ARRAY_AGG(b.location) FILTER (WHERE b.location IS NOT NULL) AS member_avatars
+    FROM 
+        group_info gi
+    LEFT JOIN 
+        group_members gm ON gi.id = gm.group_id
+    LEFT JOIN 
+        banners b ON gm.user_id = b.entity_id AND b.entity_type = 'user'
+    GROUP BY 
+        gi.id, gi.title, gi.tagline, gi.description, gi.is_private, gi.location, gi.date_joined, gi.total_members
+    ORDER BY gi.date_joined DESC
+    LIMIT $2 OFFSET $3
+`;
+
+const getUserJoinedGroupsCount = `
+    SELECT COUNT(DISTINCT g.id) as count
+    FROM groups g
+    JOIN group_members gm ON g.id = gm.group_id
+    WHERE gm.user_id = $1
 `;
 
 
@@ -285,4 +341,7 @@ module.exports = {
     confirmEmail,
     updateUser,
     getUserCreatedGroups,
+    getUserCreatedGroupsCount,
+    getUserJoinedGroups,
+    getUserJoinedGroupsCount
 };

@@ -43,16 +43,88 @@ const getUserByUniqueURL = async (req, res) => {
 
 const getUserCreatedGroups = async (req, res) => {
     const { uniqueURL } = req.params;
-    const userWithId = await pool.query(queries.getUserByUniqueURL, [uniqueURL]);
-    
-    await pool.query(queries.getUserCreatedGroups, [userWithId.rows[0].id], (error, results) => {
-        if (error) throw error;
+    const { page = 1, limit = 10 } = req.query; // Default to page 1 with 10 items per page
+
+    try {
+        const userResult = await pool.query(queries.getUserByUniqueURL, [uniqueURL]);
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+        const userId = userResult.rows[0].id;
+
+        // Calculate the offset
+        const offset = (page - 1) * limit;
+
+        // Get the groups
+        const groupsResult = await pool.query(queries.getUserCreatedGroups, [userId, limit, offset]);
+
+        // Get the total count of groups
+        const countResult = await pool.query(queries.getUserCreatedGroupsCount, [userId]);
+        const totalGroups = parseInt(countResult.rows[0].count);
 
         res.status(200).json({
             success: true,
-            data: results.rows,
+            data: groupsResult.rows,
+            pagination: {
+                currentPage: parseInt(page),
+                itemsPerPage: parseInt(limit),
+                totalItems: totalGroups,
+                totalPages: Math.ceil(totalGroups / limit)
+            }
         });
-    });
+    } catch (error) {
+        console.error('Error in getUserCreatedGroups:', error);
+        res.status(500).json({
+            success: false,
+            message: "An error occurred while fetching user's created groups"
+        });
+    }
+}
+
+const getUserJoinedGroups = async (req, res) => {
+    const { uniqueURL } = req.params;
+    const { page = 1, limit = 10 } = req.query; // Default to page 1 with 10 items per page
+    
+    try {
+        const userResult = await pool.query(queries.getUserByUniqueURL, [uniqueURL]);
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+        const userId = userResult.rows[0].id;
+        
+        // Calculate the offset
+        const offset = (page - 1) * limit;
+        
+        // Get the groups
+        const groupsResult = await pool.query(queries.getUserJoinedGroups, [userId, limit, offset]);
+        
+        // Get the total count of groups
+        const countResult = await pool.query(queries.getUserJoinedGroupsCount, [userId]);
+        const totalGroups = parseInt(countResult.rows[0].count);
+        
+        res.status(200).json({
+            success: true,
+            data: groupsResult.rows,
+            pagination: {
+                currentPage: parseInt(page),
+                itemsPerPage: parseInt(limit),
+                totalItems: totalGroups,
+                totalPages: Math.ceil(totalGroups / limit)
+            }
+        });
+    } catch (error) {
+        console.error('Error in getUserJoinedGroups:', error);
+        res.status(500).json({
+            success: false,
+            message: "An error occurred while fetching user's joined groups"
+        });
+    }
 }
 
 const createUser = async (req, res) => {
@@ -418,6 +490,7 @@ module.exports = {
     getUsers,
     getUserByUniqueURL,
     getUserCreatedGroups,
+    getUserJoinedGroups,
     createUser,
     loginUser,
     getLoggedInUser,
