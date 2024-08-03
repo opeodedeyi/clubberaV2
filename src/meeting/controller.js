@@ -24,12 +24,12 @@ const createMeeting = async (req, res) => {
         // Upload banner to S3 (outside of transaction)
         if (banner) {
             const data = await uploadToS3(banner, `${unique_url}-banner.jpg`);
-            bannerData = await bannerdb.clientCreateBanner(client, 'meeting', meeting.id, 'aws', data.key, data.location);
+            bannerData = await bannerdb.createBannerWithClient(client, 'meeting', meeting.id, 'aws', data.key, data.location);
         }
 
         // Create location
         if (location) {
-            createdLocation = await locationdb.clientCreateLocation(client, 'meeting', meeting.id, location, lat, lng);
+            createdLocation = await locationdb.createLocationWithClient(client, 'meeting', meeting.id, location, lat, lng);
         }
 
         await client.query('COMMIT');
