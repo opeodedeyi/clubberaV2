@@ -9,6 +9,7 @@ CREATE TABLE meetings (
     time_of_meeting TIMESTAMP WITH TIME ZONE,
     duration INTERVAL,
     capacity INTEGER CHECK (capacity >= 0),
+    location_details TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 -- created

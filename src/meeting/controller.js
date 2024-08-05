@@ -24,12 +24,12 @@ const createMeeting = async (req, res) => {
         // Upload banner to S3 (outside of transaction)
         if (banner) {
             const data = await uploadToS3(banner, `${unique_url}-banner.jpg`);
-            bannerData = await bannerdb.clientCreateBanner(client, 'meeting', meeting.id, 'aws', data.key, data.location);
+            bannerData = await bannerdb.createBannerWithClient(client, 'meeting', meeting.id, 'aws', data.key, data.location);
         }
 
         // Create location
         if (location) {
-            createdLocation = await locationdb.clientCreateLocation(client, 'meeting', meeting.id, location, lat, lng);
+            createdLocation = await locationdb.createLocationWithClient(client, 'meeting', meeting.id, location, lat, lng);
         }
 
         await client.query('COMMIT');
@@ -60,52 +60,65 @@ const createMeeting = async (req, res) => {
     }
 }
 
-// const getMeetingByUniqueURL = async (req, res) => {
-//     //incomplete
-//     const { meeting } = req;
-//     try {
-//         res.status(200).json({
-//             success: true,
-//             meeting: meeting.rows[0]
-//         });
-//     } catch (error) {
-//         console.error('Error:', error);
-//         return res.status(500).json({
-//             success: false,
-//             message: 'Internal Server Error',
-//         });
-//     }
-// }
-
-
-
-
 const getMeetingByUniqueURL = async (req, res) => {
+    const { user, meeting } = req;
     try {
-        const { meeting } = req; 
+        let meetingData = meeting.rows[0];
 
-        const results = await pool.query(queries.getMeetingByUniqueURL, [meeting]);
+        // Format duration
+        const hours = Math.floor(meetingData.duration.hours);
+        const minutes = meetingData.duration.minutes;
+        meetingData.duration = `${hours}:${minutes.toString().padStart(2, '0')}`;
 
-        if (results.rows.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: 'Meeting not found',
-            });
+        // Determine user status
+        let userStatus = 'not attending';
+        if (user) {
+            if (user.id === meetingData.group_owner_id) {
+                userStatus = 'owner';
+            } else {
+                const statusResult = await pool.query(
+                    'SELECT status FROM meeting_participation WHERE meeting_id = $1 AND user_id = $2',
+                    [meetingData.id, user.id]
+                );
+                if (statusResult.rows.length > 0) {
+                    userStatus = statusResult.rows[0].status;
+                }
+            }
         }
 
-        res.status(200).json({
+        // Prepare response
+        const responseObject = {
             success: true,
-            meeting: results.rows[0]
-        });
+            meeting: {
+                ...meetingData,
+                attending_count: parseInt(meetingData.attending_count),
+                waitlist_count: parseInt(meetingData.waitlist_count),
+                attending_avatars: meetingData.attending_avatars || [],
+                user_status: userStatus,
+                group_owner: {
+                    unique_url: meetingData.group_owner_unique_url,
+                    full_name: meetingData.group_owner_full_name,
+                    email: meetingData.group_owner_email,
+                    avatar: meetingData.group_owner_avatar
+                }
+            }
+        };
+
+        // Remove the individual group owner fields from the main object
+        delete responseObject.meeting.group_owner_unique_url;
+        delete responseObject.meeting.group_owner_full_name;
+        delete responseObject.meeting.group_owner_email;
+        delete responseObject.meeting.group_owner_avatar;
+
+        res.status(200).json(responseObject);
     } catch (error) {
-        res.status(500).json({
+        console.error('Error:', error);
+        return res.status(500).json({
             success: false,
             message: 'Internal Server Error',
         });
     }
 };
-
-
 
 const getUpcomingGroupMeetings = async (req, res) => {
     try {
@@ -132,9 +145,6 @@ const getUpcomingGroupMeetings = async (req, res) => {
     }
 };
 
-
-
-
 const getAllGroupMeetings = async (req, res) => {
     const { group } = req;
     try {
@@ -154,17 +164,10 @@ const getAllGroupMeetings = async (req, res) => {
 
 const updateMeeting = async (req, res) => {
     const { meeting } = req;
-    const { title, description, date_of_meeting, time_of_meeting, duration, capacity, banner, location, lat, lng } = req.body;
+    const { title, description, date_of_meeting, time_of_meeting, duration, capacity, location, lat, lng } = req.body;
     try {
         const result = await pool.query(queries.updateMeeting, [meeting.rows[0].id, title, description, date_of_meeting, time_of_meeting, duration, capacity]);
-        let updatedBanner = null;
         let updatedLocation = null;
-
-        if (banner) {
-            await deleteFromS3(meeting.rows[0].banner_key);
-            const data = await uploadToS3(banner, `${meeting.rows[0].unique_url}-banner.jpg`);
-            updatedBanner = await bannerdb.createOrUpdateBanner('meeting', meeting.rows[0].id, 'aws', data.key, data.location);
-        }
 
         if (location) {
             updatedLocation = await locationdb.findThenUpdateOrCreateLocation('meeting', meeting.rows[0].id, location, lat, lng);
@@ -172,6 +175,7 @@ const updateMeeting = async (req, res) => {
 
         const responseObject = {
             success: true,
+            message: 'Changes made',
             meeting: result.rows[0]
         };
 
@@ -179,11 +183,29 @@ const updateMeeting = async (req, res) => {
             responseObject.meeting.location = updatedLocation.rows[0].address;
         }
 
-        if (updatedBanner?.rows[0]) {
-            responseObject.meeting.banner = updatedBanner.rows[0].banner;
-        }
-
         res.status(200).json(responseObject);
+    } catch (error) {
+        console.error('Error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal Server Error',
+        });
+    }
+}
+
+const updateMeetingBanner = async (req, res) => {
+    const { meeting } = req;
+    const { banner } = req.body;
+
+    try {
+        await deleteFromS3(meeting.rows[0].banner_key);
+        const data = await uploadToS3(banner, `${meeting.rows[0].unique_url}-banner.jpg`);
+        await bannerdb.createOrUpdateBanner('meeting', meeting.rows[0].id, 'aws', data.key, data.location);
+
+        res.status(200).json({
+            success: true,
+            message: 'Banner updated',
+        });
     } catch (error) {
         console.error('Error:', error);
         return res.status(500).json({
@@ -199,5 +221,6 @@ module.exports = {
     getMeetingByUniqueURL,
     getUpcomingGroupMeetings,
     getAllGroupMeetings,
-    updateMeeting
+    updateMeeting,
+    updateMeetingBanner
 };

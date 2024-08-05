@@ -246,7 +246,7 @@ const updateUser = `
 const getUserCreatedGroups = `
     WITH group_info AS (
         SELECT 
-            g.id, g.title, g.tagline, g.description, g.is_private,
+            g.id, g.unique_url, g.title, g.tagline, g.description, g.is_private,
             l.address AS location,
             g.created_at AS date_joined,
             COUNT(DISTINCT gm.user_id) AS total_members
@@ -259,7 +259,7 @@ const getUserCreatedGroups = `
         WHERE 
             g.owner_id = $1
         GROUP BY 
-            g.id, g.title, g.tagline, g.description, g.is_private, l.address, g.created_at
+            g.id, g.unique_url, g.title, g.tagline, g.description, g.is_private, l.address, g.created_at
     )
     SELECT 
         gi.*,
@@ -271,7 +271,7 @@ const getUserCreatedGroups = `
     LEFT JOIN 
         banners b ON gm.user_id = b.entity_id AND b.entity_type = 'user'
     GROUP BY 
-        gi.id, gi.title, gi.tagline, gi.description, gi.is_private, gi.location, gi.date_joined, gi.total_members
+        gi.id, gi.unique_url, gi.title, gi.tagline, gi.description, gi.is_private, gi.location, gi.date_joined, gi.total_members
     ORDER BY gi.date_joined DESC
     LIMIT $2 OFFSET $3
 `;
@@ -285,7 +285,7 @@ const getUserCreatedGroupsCount = `
 const getUserJoinedGroups = `
     WITH group_info AS (
         SELECT 
-            g.id, g.title, g.tagline, g.description, g.is_private,
+            g.id, g.unique_url, g.title, g.tagline, g.description, g.is_private,
             l.address AS location,
             gm.created_at AS date_joined,
             COUNT(DISTINCT gm2.user_id) AS total_members
@@ -298,7 +298,7 @@ const getUserJoinedGroups = `
         LEFT JOIN 
             group_members gm2 ON g.id = gm2.group_id
         GROUP BY 
-            g.id, g.title, g.tagline, g.description, g.is_private, l.address, gm.created_at
+            g.id, g.unique_url, g.title, g.tagline, g.description, g.is_private, l.address, gm.created_at
     )
     SELECT 
         gi.*,
@@ -310,7 +310,7 @@ const getUserJoinedGroups = `
     LEFT JOIN 
         banners b ON gm.user_id = b.entity_id AND b.entity_type = 'user'
     GROUP BY 
-        gi.id, gi.title, gi.tagline, gi.description, gi.is_private, gi.location, gi.date_joined, gi.total_members
+        gi.id, gi.unique_url, gi.title, gi.tagline, gi.description, gi.is_private, gi.location, gi.date_joined, gi.total_members
     ORDER BY gi.date_joined DESC
     LIMIT $2 OFFSET $3
 `;

@@ -367,30 +367,48 @@ const confirmEmail = async (req, res) => {
 
 const updateUser = async (req, res) => {
     const { user } = req;
-    const { fullName, bio, gender, city, lat, lng, avatar, birthday } = req.body;
+    const { fullName, bio, gender, city, lat, lng, birthday } = req.body;
 
     try {
         const updatedUser = await pool.query(queries.updateUser, [user.rows[0].id, fullName, bio, gender, birthday]);
-        let bannerData = null;
-        let createdLocation = null;
+        let updatedLocation = null;
 
         if (city) {
-            createdLocation = await locationdb.findThenUpdateOrCreateLocation('user', user.rows[0].id, city, lat, lng);
-        }
-
-        if (avatar) {
-            await deleteFromS3(user.rows[0].banner_key);
-            const data = await uploadToS3(avatar, `${user.rows[0].unique_url}-banner.jpg`);
-            bannerData = await bannerdb.createOrUpdateBanner('user', user.rows[0].id, data.key, data.location);
+            updatedLocation = await locationdb.findThenUpdateOrCreateLocation('user', user.rows[0].id, city, lat, lng);
         }
 
         const responseObject = {
             success: true,
-            message: 'User updated',
             user: updatedUser.rows[0],
         };
 
+        if (updatedLocation?.rows[0]) {
+            responseObject.user.city = updatedLocation.rows[0].address;
+        }
+
         res.status(200).json(responseObject);
+    } catch (error) {
+        console.error('Error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal Server Error',
+        });
+    }
+}
+
+const updateUserAvatar = async (req, res) => {
+    const { user } = req;
+    const { avatar } = req.body;
+    
+    try {
+        await deleteFromS3(user.rows[0].banner_key);
+        const data = await uploadToS3(avatar, `${user.rows[0].unique_url}-banner.jpg`);
+        await bannerdb.createOrUpdateBanner('user', user.rows[0].id, data.key, data.location);
+
+        res.status(200).json({
+            success: true,
+            message: 'User avatar updated',
+        });
     } catch (error) {
         console.error('Error:', error);
         return res.status(500).json({
@@ -500,6 +518,7 @@ module.exports = {
     logoutAll,
     confirmEmail,
     updateUser,
+    updateUserAvatar,
     changePassword,
     googleAuth
 };
