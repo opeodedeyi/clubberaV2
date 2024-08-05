@@ -9,103 +9,36 @@ const createMeeting = `
 
 const getMeetingByUniqueURL = `
     SELECT 
-        m.id, m.title, m.description, m.date_of_meeting, m.time_of_meeting, m.duration, m.capacity,
-        g.title AS group_title, g.owner_id AS group_owner_id, l.address AS location, b.location AS banner, b.key AS banner_key
+        m.id, m.unique_url, m.title, m.description, m.date_of_meeting, m.time_of_meeting, 
+        m.duration, m.capacity,
+        g.title AS group_title, g.owner_id AS group_owner_id, g.unique_url AS group_unique_url,
+        l.address AS location, b.location AS banner, b.key AS banner_key,
+        (SELECT COUNT(*) FROM meeting_participation mp WHERE mp.meeting_id = m.id AND mp.status = 'attending') AS attending_count,
+        (SELECT COUNT(*) FROM meeting_participation mp WHERE mp.meeting_id = m.id AND mp.status = 'waitlist') AS waitlist_count,
+        (SELECT json_agg(u.unique_url) 
+         FROM meeting_participation mp 
+         JOIN users u ON mp.user_id = u.id 
+         WHERE mp.meeting_id = m.id AND mp.status = 'attending' 
+         LIMIT 5) AS attending_avatars,
+        owner.unique_url AS group_owner_unique_url,
+        owner.full_name AS group_owner_full_name,
+        owner.email AS group_owner_email,
+        owner_banner.location AS group_owner_avatar
     FROM 
         meetings m
     JOIN
-        groups g
-    ON
-        m.group_id = g.id
+        groups g ON m.group_id = g.id
+    JOIN
+        users owner ON g.owner_id = owner.id
     LEFT JOIN
-        locations l
-    ON
-        m.id = l.entity_id
-    AND
-        l.entity_type = 'meeting'
+        banners owner_banner ON owner.id = owner_banner.entity_id AND owner_banner.entity_type = 'user'
     LEFT JOIN
-        banners b
-    ON
-        m.id = b.entity_id
-    AND
-        b.entity_type = 'meeting'
+        locations l ON m.id = l.entity_id AND l.entity_type = 'meeting'
+    LEFT JOIN
+        banners b ON m.id = b.entity_id AND b.entity_type = 'meeting'
     WHERE 
         m.unique_url = $1
 `;
-
-// const getMeetingByUniqueURL = `
-//     SELECT 
-//         m.id, 
-//         m.title AS meeting_title, 
-//         m.description, 
-//         m.date_of_meeting, 
-//         m.time_of_meeting, 
-//         m.duration, 
-//         m.capacity,
-//         g.title AS group_title, 
-//         g.owner_id AS group_owner_id, 
-//         gh.name AS host_name,
-//         gh.email AS host_email,
-//         l.address AS location, 
-//         mb.location AS meeting_banner, 
-//         mb.key AS meeting_banner_key,
-//         gb.location AS group_banner, 
-//         gb.key AS group_banner_key,
-//         COALESCE(att.total_attendees, 0) AS total_attendees,
-//         COALESCE(att.five_attendees, ARRAY[]::json[]) AS five_attendees
-//     FROM 
-//         meetings m
-//     JOIN
-//         groups g
-//     ON
-//         m.group_id = g.id
-//     LEFT JOIN
-//         locations l
-//     ON
-//         m.id = l.entity_id
-//     AND
-//         l.entity_type = 'meeting'
-//     LEFT JOIN
-//         banners mb
-//     ON
-//         m.id = mb.entity_id
-//     AND
-//         mb.entity_type = 'meeting'
-//     LEFT JOIN
-//         banners gb
-//     ON
-//         g.id = gb.entity_id
-//     AND
-//         gb.entity_type = 'group'
-//     JOIN
-//         users gh
-//     ON
-//         g.owner_id = gh.id
-//     LEFT JOIN (
-//         SELECT 
-//             a.meeting_id, 
-//             COUNT(a.user_id) AS total_attendees, 
-//             JSON_AGG(json_build_object('name', u.name, 'status', a.status, 'banner', ab.location)) FILTER (WHERE a.user_id IS NOT NULL) AS five_attendees
-//         FROM 
-//             meeting_participation a
-//         LEFT JOIN 
-//             users u
-//         ON 
-//             a.user_id = u.id
-//         LEFT JOIN 
-//             banners ab
-//         ON 
-//             u.id = ab.entity_id
-//         AND 
-//             ab.entity_type = 'user'
-//         GROUP BY 
-//             a.meeting_id
-//     ) att
-//     ON 
-//         m.id = att.meeting_id
-//     WHERE 
-//         m.unique_url = $1
-// `;
 
 
 const getUpcomingGroupMeetings = `

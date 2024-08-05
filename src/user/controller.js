@@ -399,8 +399,6 @@ const updateUser = async (req, res) => {
 const updateUserAvatar = async (req, res) => {
     const { user } = req;
     const { avatar } = req.body;
-
-    console.log(user.rows[0]);
     
     try {
         await deleteFromS3(user.rows[0].banner_key);
