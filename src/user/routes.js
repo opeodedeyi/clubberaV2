@@ -19,6 +19,7 @@ router.post('/logout', auth, controller.logout);
 router.post('/logoutall', auth, controller.logoutAll);
 router.post('/logoutall', auth, controller.logoutAll);
 router.patch('/update', auth, controller.updateUser);
+router.patch('/updateavatar', auth, controller.updateUserAvatar);
 router.patch('/changepassword', auth, controller.changePassword);
 // set profile picture, has to be loggedin
 // request verification email, has to be loggedin
