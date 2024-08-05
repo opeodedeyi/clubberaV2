@@ -10,9 +10,9 @@ const createMeeting = `
 const getMeetingByUniqueURL = `
     SELECT 
         m.id, m.unique_url, m.title, m.description, m.date_of_meeting, m.time_of_meeting, 
-        m.duration, m.capacity,
+        m.duration, m.capacity, m.location_details,
         g.title AS group_title, g.owner_id AS group_owner_id, g.unique_url AS group_unique_url,
-        l.address AS location, b.location AS banner, b.key AS banner_key,
+        l.address AS location, l.lng, l.lat, b.location AS banner, b.key AS banner_key,
         (SELECT COUNT(*) FROM meeting_participation mp WHERE mp.meeting_id = m.id AND mp.status = 'attending') AS attending_count,
         (SELECT COUNT(*) FROM meeting_participation mp WHERE mp.meeting_id = m.id AND mp.status = 'waitlist') AS waitlist_count,
         (SELECT json_agg(u.unique_url) 
