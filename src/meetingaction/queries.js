@@ -42,9 +42,32 @@ const unattendMeeting = `
         meeting_id = $2
 `;
 
+const checkAttendance = `
+    SELECT status 
+    FROM meeting_participation
+    WHERE user_id = $1 AND meeting_id = $2
+`;
+
+const getNextWaitlisted = `
+    SELECT user_id 
+    FROM meeting_participation
+    WHERE meeting_id = $1 AND status = 'waitlisted'
+    ORDER BY indication_time ASC
+    LIMIT 1
+`;
+
+const updateToAttending = `
+    UPDATE meeting_participation
+    SET status = 'attending'
+    WHERE user_id = $1 AND meeting_id = $2
+`;
+
 module.exports = {
     currentlyAttending,
     attendMeeting,
     getMeetingAttendees,
     unattendMeeting,
+    checkAttendance,
+    getNextWaitlisted,
+    updateToAttending
 };

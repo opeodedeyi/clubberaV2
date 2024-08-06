@@ -1,5 +1,6 @@
 const pool = require('../../db');
 const queries = require('./queries');
+const meetingActionQueries = require('../meetingaction/queries');
 const locationdb = require('../utils/location');
 const bannerdb = require('../utils/banner');
 const { uploadToS3, deleteFromS3 } = require('../services/s3service');
@@ -11,11 +12,11 @@ const createMeeting = async (req, res) => {
         await client.query('BEGIN');
 
         const { group } = req;
-        const { title, description, date_of_meeting, time_of_meeting, duration, capacity, banner, location, lat, lng } = req.body;
+        const { title, description, date_of_meeting, time_of_meeting, duration, capacity, banner, location, lat, lng, location_details } = req.body;
         const unique_url = title.replace(/\s+/g, '-').toLowerCase() + '-' + Date.now();
 
         // Create meeting
-        const result = await client.query(queries.createMeeting, [unique_url, group.rows[0].id, title, description, date_of_meeting, time_of_meeting, duration, capacity]);
+        const result = await client.query(queries.createMeeting, [unique_url, group.rows[0].id, title, description, date_of_meeting, time_of_meeting, duration, capacity, location_details]);
         const meeting = result.rows[0];
 
         let bannerData = null;
@@ -164,19 +165,50 @@ const getAllGroupMeetings = async (req, res) => {
 
 const updateMeeting = async (req, res) => {
     const { meeting } = req;
-    const { title, description, date_of_meeting, time_of_meeting, duration, capacity, location, lat, lng } = req.body;
-    try {
-        const result = await pool.query(queries.updateMeeting, [meeting.rows[0].id, title, description, date_of_meeting, time_of_meeting, duration, capacity]);
-        let updatedLocation = null;
+    const { title, description, date_of_meeting, time_of_meeting, duration, capacity, location, lat, lng, location_details } = req.body;
+    const client = await pool.connect();
 
+    try {
+        await client.query('BEGIN');
+
+        const oldMeeting = meeting.rows[0];
+        const result = await client.query(queries.updateMeeting, [oldMeeting.id, title, description, date_of_meeting, time_of_meeting, duration, capacity, location_details]);
+        const updatedMeeting = result.rows[0];
+
+        let updatedLocation = null;
         if (location) {
-            updatedLocation = await locationdb.findThenUpdateOrCreateLocation('meeting', meeting.rows[0].id, location, lat, lng);
+            updatedLocation = await locationdb.findThenUpdateOrCreateLocation('meeting', oldMeeting.id, location, lat, lng);
         }
+
+        // Check if capacity has increased
+        if (capacity && capacity > oldMeeting.capacity) {
+            const increasedCapacity = capacity - oldMeeting.capacity;
+            const currentlyAttending = await client.query(meetingActionQueries.currentlyAttending, [oldMeeting.id]);
+            const attendeesCount = currentlyAttending.rows[0].attendees_count;
+            const slotsAvailable = Math.min(increasedCapacity, updatedMeeting.capacity - attendeesCount);
+
+            if (slotsAvailable > 0) {
+                const waitlistedResult = await client.query(queries.getWaitlistedAttendees, [oldMeeting.id]);
+                const waitlistedAttendees = waitlistedResult.rows.slice(0, slotsAvailable).map(row => row.user_id);
+
+                if (waitlistedAttendees.length > 0) {
+                    console.log('Updating attendee status with query:', queries.updateAttendeeStatus);
+                    if (!queries.updateAttendeeStatus) {
+                        throw new Error('updateAttendeeStatus query is undefined');
+                    }
+
+                    const updatedAttendeesResult = await client.query(queries.updateAttendeeStatus, [oldMeeting.id, waitlistedAttendees]);
+                    
+                    // Here you might want to add code to notify users who have been moved from waitlist to attending
+                }
+            }
+        }
+
+        await client.query('COMMIT');
 
         const responseObject = {
             success: true,
-            message: 'Changes made',
-            meeting: result.rows[0]
+            meeting: updatedMeeting
         };
 
         if (updatedLocation?.rows[0]) {
@@ -185,11 +217,15 @@ const updateMeeting = async (req, res) => {
 
         res.status(200).json(responseObject);
     } catch (error) {
+        await client.query('ROLLBACK');
         console.error('Error:', error);
         return res.status(500).json({
             success: false,
             message: 'Internal Server Error',
+            error: error.message
         });
+    } finally {
+        client.release();
     }
 }
 
