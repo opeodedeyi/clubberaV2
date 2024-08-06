@@ -401,13 +401,16 @@ const updateUserAvatar = async (req, res) => {
     const { avatar } = req.body;
     
     try {
-        await deleteFromS3(user.rows[0].banner_key);
+        if (user.rows[0].banner_key) {
+            await deleteFromS3(user.rows[0].banner_key);
+        }
+
         const data = await uploadToS3(avatar, `${user.rows[0].unique_url}-banner.jpg`);
-        await bannerdb.createOrUpdateBanner('user', user.rows[0].id, data.key, data.location);
+        const uploadedAvatar = await bannerdb.createOrUpdateBanner('user', user.rows[0].id, 'aws', data.key, data.location);
 
         res.status(200).json({
             success: true,
-            message: 'User avatar updated',
+            avatar: uploadedAvatar.rows[0].banner,
         });
     } catch (error) {
         console.error('Error:', error);
