@@ -1,8 +1,8 @@
 const createMeeting = `
     INSERT INTO meetings
-        (unique_url, group_id, title, description, date_of_meeting, time_of_meeting, duration, capacity)
+        (unique_url, group_id, title, description, date_of_meeting, time_of_meeting, duration, capacity, location_details)
     VALUES 
-        ($1, $2, $3, $4, $5, $6, $7, $8)
+        ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     RETURNING
         id, unique_url
 `;
@@ -128,11 +128,26 @@ const updateMeeting = `
         date_of_meeting = COALESCE($4, date_of_meeting),
         time_of_meeting = COALESCE($5, time_of_meeting),
         duration = COALESCE($6, duration), 
-        capacity = COALESCE($7, capacity)
+        capacity = COALESCE($7, capacity),
+        location_details = COALESCE($8, location_details)
     WHERE 
         id = $1
     RETURNING
-        id, title, description, date_of_meeting, time_of_meeting, duration, capacity
+        id, title, description, date_of_meeting, time_of_meeting, duration, capacity, location_details
+`;
+
+const getWaitlistedAttendees = `
+    SELECT user_id
+    FROM meeting_participation
+    WHERE meeting_id = $1 AND status = 'waitlisted'
+    ORDER BY indication_time ASC
+`;
+
+const updateAttendeeStatus = `
+    UPDATE meeting_participation
+    SET status = 'attending'
+    WHERE meeting_id = $1 AND user_id = ANY($2::int[])
+    RETURNING user_id
 `;
 
 
@@ -141,5 +156,7 @@ module.exports = {
     getMeetingByUniqueURL,
     getUpcomingGroupMeetings,
     getAllGroupMeetings,
-    updateMeeting
+    updateMeeting,
+    getWaitlistedAttendees,
+    updateAttendeeStatus
 };
