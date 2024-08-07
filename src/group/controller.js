@@ -81,8 +81,7 @@ const getGroupByUniqueURL = async (req, res) => {
     let isMember = 'not-member'; // not-member, member, pending, owner
 
     try {
-        const group = req.group
-        console.log('group - ', group);
+        const group = req.group;
 
         if (user) {
             if (user.id === group.rows[0].owner_id) {
@@ -331,6 +330,47 @@ const getAllRequests = async (req, res) => {
     }
 };
 
+const getMeetingsForGroup = async (req, res) => {
+    const { group } = req;
+    const userId = req.user ? req.user.id : null;
+    const { upcoming, page = 1, limit = 10 } = req.query;
+
+    try {
+        const upcomingFilter = upcoming === 'true' ? true : (upcoming === 'false' ? false : null);
+        const offset = (page - 1) * limit;
+        
+        // Get total count of meetings
+        const countResult = await pool.query(
+            queries.getMeetingsForGroupCount, 
+            [group.rows[0].id, upcomingFilter]
+        );
+        const totalMeetings = parseInt(countResult.rows[0].count);
+
+        // Get paginated meetings
+        const meetings = await pool.query(
+            queries.getMeetingsForGroup, 
+            [group.rows[0].id, userId, upcomingFilter, limit, offset]
+        );
+
+        res.status(200).json({
+            success: true,
+            meetings: meetings.rows,
+            pagination: {
+                currentPage: parseInt(page),
+                itemsPerPage: parseInt(limit),
+                totalItems: totalMeetings,
+                totalPages: Math.ceil(totalMeetings / limit)
+            }
+        });
+    } catch (error) {
+        console.error('Error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal Server Error',
+        });
+    }
+}
+
 
 module.exports = {
     getAllGroups,
@@ -341,5 +381,6 @@ module.exports = {
     joinGroup,
     leaveGroup,
     getAllMembers,
-    getAllRequests
+    getAllRequests,
+    getMeetingsForGroup
 };

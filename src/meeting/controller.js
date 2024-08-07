@@ -121,48 +121,6 @@ const getMeetingByUniqueURL = async (req, res) => {
     }
 };
 
-const getUpcomingGroupMeetings = async (req, res) => {
-    try {
-        const { uniqueURL } = req.params; 
-
-        const results = await pool.query(queries.getUpcomingGroupMeetings, [uniqueURL]);
-
-        if (results.rows.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: 'Meeting not found',
-            });
-        }
-
-        res.status(200).json({
-            success: true,
-            meeting: results.rows[0]
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: 'Internal Server Error',
-        });
-    }
-};
-
-const getAllGroupMeetings = async (req, res) => {
-    const { group } = req;
-    try {
-        const result = await pool.query(queries.getAllGroupMeetings, [group.rows[0].id]);
-        res.status(200).json({
-            success: true,
-            meetings: result.rows
-        });
-    } catch (error) {
-        console.error('Error:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Internal Server Error',
-        });
-    }
-}
-
 const updateMeeting = async (req, res) => {
     const { meeting } = req;
     const { title, description, date_of_meeting, time_of_meeting, duration, capacity, location, lat, lng, location_details } = req.body;
@@ -255,8 +213,6 @@ const updateMeetingBanner = async (req, res) => {
 module.exports = {
     createMeeting,
     getMeetingByUniqueURL,
-    getUpcomingGroupMeetings,
-    getAllGroupMeetings,
     updateMeeting,
     updateMeetingBanner
 };
