@@ -7,8 +7,6 @@ const router = Router();
 
 
 router.get('/:meetingUniqueURL', optauth, meetingExists, controller.getMeetingByUniqueURL);
-router.get('/:uniqueURL', meetingExists, controller.getUpcomingGroupMeetings);
-router.get('/:groupUniqueURL/groupmeetings', groupExists, controller.getAllGroupMeetings);
 router.post('/:groupUniqueURL/create', auth, groupExists, isGroupOwner, controller.createMeeting);
 router.patch('/:meetingUniqueURL/update', auth, meetingExists, isMeetingOwner, controller.updateMeeting);
 router.patch('/:meetingUniqueURL/updatebanner', auth, meetingExists, isMeetingOwner, controller.updateMeetingBanner);

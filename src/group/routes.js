@@ -14,6 +14,6 @@ router.post('/create', auth, controller.createGroup);
 router.post('/:groupUniqueURL/joingroup', auth, groupExists, controller.joinGroup);
 router.post('/:groupUniqueURL/leavegroup', auth, groupExists, controller.leaveGroup);
 router.patch('/:groupUniqueURL/update', auth, groupExists, isGroupOwner, controller.updateGroup);
+router.get('/:groupUniqueURL/meetings', optauth, groupExists, controller.getMeetingsForGroup);
 
 module.exports = router;
-// search and filter for all groups

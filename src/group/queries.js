@@ -183,6 +183,53 @@ const checkGroupMembership = `
         gm.user_id = $2
 `;
 
+const getMeetingsForGroup = `
+    SELECT 
+        m.id, m.unique_url, m.title, m.description, m.date_of_meeting, 
+        m.time_of_meeting,
+        l.address AS location, l.lat, l.lng,
+        b.location AS banner,
+        (SELECT COUNT(*) FROM meeting_participation mp WHERE mp.meeting_id = m.id AND mp.status = 'attending') AS attendee_count,
+        (SELECT ARRAY_AGG(b.location) 
+         FROM meeting_participation mp 
+         JOIN banners b ON b.entity_type = 'user' AND b.entity_id = mp.user_id 
+         WHERE mp.meeting_id = m.id AND mp.status = 'attending' 
+         LIMIT 2) AS attendees_avatar,
+        CASE 
+            WHEN $2::INTEGER IS NOT NULL THEN
+                CASE
+                    WHEN m.group_id IN (SELECT id FROM groups WHERE owner_id = $2) THEN 'owner'
+                    WHEN EXISTS (SELECT 1 FROM meeting_participation mp WHERE mp.meeting_id = m.id AND mp.user_id = $2 AND mp.status = 'attending') THEN 'attending'
+                    WHEN EXISTS (SELECT 1 FROM meeting_participation mp WHERE mp.meeting_id = m.id AND mp.user_id = $2 AND mp.status = 'waitlist') THEN 'waitlist'
+                    ELSE 'not attending'
+                END
+            ELSE 'not attending'
+        END AS status
+    FROM 
+        meetings m
+    LEFT JOIN 
+        locations l ON m.id = l.entity_id AND l.entity_type = 'meeting'
+    LEFT JOIN
+        banners b ON m.id = b.entity_id AND b.entity_type = 'meeting'
+    WHERE 
+        m.group_id = $1
+        AND ($3::boolean IS NULL OR 
+            ($3::boolean = true AND m.date_of_meeting >= CURRENT_DATE) OR 
+            ($3::boolean = false AND m.date_of_meeting < CURRENT_DATE))
+    ORDER BY 
+        m.date_of_meeting ASC, m.time_of_meeting ASC
+    LIMIT $4 OFFSET $5
+`;
+
+const getMeetingsForGroupCount = `
+    SELECT COUNT(*)
+    FROM meetings m
+    WHERE 
+        m.group_id = $1
+        AND ($2::boolean IS NULL OR 
+            ($2::boolean = true AND m.date_of_meeting >= CURRENT_DATE) OR 
+            ($2::boolean = false AND m.date_of_meeting < CURRENT_DATE))
+`;
 
 module.exports = {
     createGroup,
@@ -198,5 +245,7 @@ module.exports = {
     getAllMembersCount,
     getAllRequests,
     getAllRequestsCount,
-    checkGroupMembership
+    checkGroupMembership,
+    getMeetingsForGroup,
+    getMeetingsForGroupCount
 };
