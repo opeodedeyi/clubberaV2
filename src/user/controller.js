@@ -5,7 +5,7 @@ const locationdb = require('../utils/location');
 const bannerdb = require('../utils/banner');
 const { uploadToS3, deleteFromS3 } = require('../services/s3service');
 const { securePassword, comparePasswords, generateRandomPassword } = require('../services/passwordservice');
-const { verifyGoogleToken } = require('../services/googleLoginService');
+const { getGoogleIdToken, verifyGoogleToken } = require('../services/googleLoginService');
 const { generateAuthToken, generateEmailConfirmToken, generatePasswordResetToken } = require('../services/tokenservice');
 const { sendConfirmationEmail, sendPasswordResetEmail } = require('../services/emailservice');
 
@@ -453,10 +453,71 @@ const changePassword = async (req, res) => {
     }
 }
 
+// const googleAuth = async (req, res) => {
+//     try {
+//         const idToken = req.body.code
+//         const payload = await verifyGoogleToken(idToken);
+//         const { email, name, picture } = payload;
+        
+//         let user = await pool.query(queries.checkEmailExists, [email]);
+//         let avatar = null;
+
+//         if (user.rows.length === 0) {
+//             const password = generateRandomPassword(16);
+//             const hashedPassword = await securePassword(password);
+//             const unique_url = name.replace(/\s+/g, '-').toLowerCase() + '-' + Date.now();
+
+//             user = await pool.query(queries.createGoogleUser, [email, name, hashedPassword, unique_url]);
+            
+//             if (picture) {
+//                 avatar = await bannerdb.createBanner('user', user.rows[0].id, 'google', picture, picture);
+//             }
+
+//             // send welcome email to user
+//         }
+
+//         if (user.rows[0].is_email_confirmed === false) {
+//             const confirmUser = await pool.query(queries.confirmEmail, [user.rows[0].id]);
+//             user.rows[0] = confirmUser.rows[0];
+//         }
+        
+
+//         const token = await generateAuthToken(user.rows[0]);
+//         const createdToken = await pool.query(tokenQueries.createToken, [user.rows[0].id, token]);
+
+//         const responseObject = {
+//             success: true,
+//             message: 'User logged in with Google',
+//             user: user.rows[0],
+//             token: createdToken.rows[0].token,
+//         };
+        
+//         if (avatar) {
+//             responseObject.user.avatar = avatar.rows[0].banner;
+//         }
+
+//         res.status(200).json(responseObject);
+//     } catch (error) {
+//         console.error('Error:', error);
+//         return res.status(500).json({
+//             success: false,
+//             message: 'Internal Server Error',
+//         });
+//     };
+// };
+
 const googleAuth = async (req, res) => {
     try {
-        const idToken = req.body.code
-        const payload = await verifyGoogleToken(idToken);
+        const { code, idToken } = req.body;
+        let payload
+
+        if (idToken) {
+            payload = await verifyGoogleToken(idToken);
+        } else {
+            const createdIdToken = await getGoogleIdToken(code);
+            payload = await verifyGoogleToken(createdIdToken);
+        }
+
         const { email, name, picture } = payload;
         
         let user = await pool.query(queries.checkEmailExists, [email]);
@@ -503,7 +564,7 @@ const googleAuth = async (req, res) => {
             success: false,
             message: 'Internal Server Error',
         });
-    }
+    };
 }
 
 
