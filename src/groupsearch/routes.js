@@ -1,8 +1,9 @@
-const express = require('express');
+const { Router } = require('express');
+const { optauth } = require('../middleware/auth');
 const { searchGroups } = require('./controller');
-const router = express.Router();
+const router = Router();
 
-// GET route for searching groups
-router.get('/search-group', searchGroups );
+
+router.get('/search-group', optauth, searchGroups );
 
 module.exports = router;

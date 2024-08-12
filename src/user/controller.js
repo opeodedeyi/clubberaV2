@@ -5,7 +5,7 @@ const locationdb = require('../utils/location');
 const bannerdb = require('../utils/banner');
 const { uploadToS3, deleteFromS3 } = require('../services/s3service');
 const { securePassword, comparePasswords, generateRandomPassword } = require('../services/passwordservice');
-const { verifyGoogleToken } = require('../services/googleLoginService');
+const { getGoogleIdToken, verifyGoogleToken } = require('../services/googleLoginService');
 const { generateAuthToken, generateEmailConfirmToken, generatePasswordResetToken } = require('../services/tokenservice');
 const { sendConfirmationEmail, sendPasswordResetEmail } = require('../services/emailservice');
 
@@ -455,8 +455,16 @@ const changePassword = async (req, res) => {
 
 const googleAuth = async (req, res) => {
     try {
-        const idToken = req.body.code
-        const payload = await verifyGoogleToken(idToken);
+        const { code, idToken } = req.body;
+        let payload
+
+        if (idToken) {
+            payload = await verifyGoogleToken(idToken);
+        } else {
+            const createdIdToken = await getGoogleIdToken(code);
+            payload = await verifyGoogleToken(createdIdToken);
+        }
+
         const { email, name, picture } = payload;
         
         let user = await pool.query(queries.checkEmailExists, [email]);
@@ -503,7 +511,7 @@ const googleAuth = async (req, res) => {
             success: false,
             message: 'Internal Server Error',
         });
-    }
+    };
 }
 
 
