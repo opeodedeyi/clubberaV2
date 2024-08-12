@@ -1,8 +1,9 @@
-const express = require('express');
+const { Router } = require('express');
+const { optauth } = require('../middleware/auth');
 const { searchMeetings } = require('./contoller');
-const router = express.Router();
+const router = Router();
 
-// Define the search route
-router.get('/search-meeting', searchMeetings);
+
+router.get('/search-meeting', optauth, searchMeetings);
 
 module.exports = router;

@@ -263,9 +263,8 @@ const getAllMembers = async (req, res) => {
         const members = membersResult.rows.map(row => ({
             id: row.id,
             full_name: row.full_name,
-            email: row.email,
             unique_url: row.unique_url,
-            date_joined: row.date_joined,
+            member_since: row.date_joined,
             avatar: row.avatar || null,
             location: row.address || null
         }));

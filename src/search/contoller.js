@@ -1,6 +1,8 @@
 const { searchMeetings } = require('./queries');
 
 exports.searchMeetings = async (req, res) => {
+    const { user } = req;
+    
     try {
         const { searchText, sortBy, userLat, userLng, fromDate, toDate, minCapacity, maxCapacity, upcoming, page = 1, limit = 10 } = req.query;
 
@@ -24,13 +26,30 @@ exports.searchMeetings = async (req, res) => {
             userLng ? parseFloat(userLng) : null, 
             filters,
             offset,
-            parseInt(limit)
+            parseInt(limit),
+            user ? user.id : null  // Pass null if user is not defined
         );
 
+        const formattedMeetings = meetings.map(meeting => ({
+            id: meeting.id,
+            unique_url: meeting.unique_url,
+            title: meeting.title,
+            description: meeting.description,
+            date_of_meeting: meeting.date_of_meeting,
+            time_of_meeting: meeting.time_of_meeting,
+            capacity: meeting.capacity,
+            group_title: meeting.group_title,
+            location: meeting.location,
+            banner: meeting.banner,
+            attendee_count: meeting.attendee_count,
+            attendees_avatar: meeting.attendees_avatar,
+            status: meeting.status
+        }));
+
         return res.status(200).json({
-            message: `Retrieved ${meetings.length} meetings`,
+            message: `Retrieved ${formattedMeetings.length} meetings`,
             success: true,
-            meetings,
+            meetings: formattedMeetings,
             pagination: {
                 currentPage: parseInt(page),
                 itemsPerPage: parseInt(limit),
