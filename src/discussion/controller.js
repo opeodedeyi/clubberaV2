@@ -115,7 +115,7 @@ const createGroupDiscussion = async (req, res) => {
             discussion: {
                 id: discussion.id,
                 user_name: discussion.user_name,
-                user_avatar: discussion.user_avatar || null,
+                user_image: discussion.user_avatar || null,
                 created_at: discussion.discussion_time,
                 comment: discussion.comment,
             }
@@ -134,10 +134,6 @@ const createMeetingDiscussion = async (req, res) => {
     const user = req.user;
     const { comment} = req.body;
 
-    console.log(meeting.rows[0].id);
-    console.log(user.rows[0].id);
-    
-
     try {
         const result = await pool.query(queries.createDiscussion, [user.rows[0].id, 'meeting', meeting.rows[0].id, null, comment]);
         
@@ -154,7 +150,7 @@ const createMeetingDiscussion = async (req, res) => {
             discussion: {
                 id: discussion.id,
                 user_name: discussion.user_name,
-                user_avatar: discussion.user_avatar || null,
+                user_image: discussion.user_avatar || null,
                 created_at: discussion.discussion_time,
                 comment: discussion.comment,
             }
@@ -200,7 +196,7 @@ const getDiscussionReply = async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            replies: replies,
+            discussions: replies,
             pagination: {
                 currentPage: page,
                 limit: limit,
@@ -224,9 +220,25 @@ const createDiscussionReply = async (req, res) => {
 
     try {
         const result = await pool.query(queries.createDiscussion, [user.rows[0].id, discussion.rows[0].entity_type, discussion.rows[0].entity_id, discussion.rows[0].id, comment]);
+        
+        if (result.rows.length === 0) {
+            return res.status(500).json({
+                success: false,
+                message: 'Failed to create reply',
+            });
+        }
+
+        const reply = {
+            id: result.rows[0].id,
+            comment: result.rows[0].comment,
+            created_at: result.rows[0].discussion_time,
+            user_name: result.rows[0].user_name,
+            user_image: result.rows[0].user_avatar || null
+        };
+        
         return res.status(201).json({
             success: true,
-            discussion: result.rows[0]
+            discussion: reply
         });
     } catch (error) {
         console.error('Error:', error);
