@@ -106,6 +106,9 @@ const getGroupByUniqueURL = async (req, res) => {
             }
         }
 
+        // Ensure members_avatar is always an array, even if null is returned from the database
+        group.rows[0].members_avatar = group.rows[0].members_avatar || [];
+
         group.rows[0].isMember = isMember;
         res.status(200).json({
             success: true,

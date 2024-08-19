@@ -27,24 +27,40 @@ const getAllGroups = `
 `;
 
 const getGroupByUniqueURL = `
-    SELECT
-        g.id, g.unique_url, g.title, g.tagline, g.description, g.owner_id, g.is_private,
-        l.address AS location, l.lat, l.lng, b.location AS banner,
-        u.full_name AS host_name,
-        (SELECT location FROM banners WHERE entity_type = 'user' AND entity_id = g.owner_id) AS host_avatar,
-        (SELECT COUNT(*)
+    WITH group_data AS (
+        SELECT
+            g.id, g.unique_url, g.title, g.tagline, g.description, g.owner_id, g.is_private,
+            l.address AS location, l.lat, l.lng, b.location AS banner,
+            u.full_name AS host_name,
+            (SELECT location FROM banners WHERE entity_type = 'user' AND entity_id = g.owner_id) AS host_avatar,
+            (SELECT COUNT(*)
+                FROM group_members gm
+                WHERE gm.group_id = g.id) AS member_count
+        FROM 
+            groups g
+        JOIN 
+            locations l ON g.id = l.entity_id AND l.entity_type = 'group'
+        LEFT JOIN
+            banners b ON g.id = b.entity_id AND b.entity_type = 'group'
+        JOIN
+            users u ON g.owner_id = u.id
+        WHERE 
+            g.unique_url = $1
+    ),
+    member_avatars AS (
+        SELECT ARRAY_AGG(b.location) AS avatars
+        FROM (
+            SELECT gm.user_id
             FROM group_members gm
-            WHERE gm.group_id = g.id) AS member_count
-    FROM 
-        groups g
-    JOIN 
-        locations l ON g.id = l.entity_id AND l.entity_type = 'group'
-    LEFT JOIN
-        banners b ON g.id = b.entity_id AND b.entity_type = 'group'
-    JOIN
-        users u ON g.owner_id = u.id
-    WHERE 
-        g.unique_url = $1
+            JOIN group_data gd ON gm.group_id = gd.id
+            WHERE gm.user_id != gd.owner_id
+            ORDER BY gm.created_at
+            LIMIT 5
+        ) AS members
+        LEFT JOIN banners b ON b.entity_type = 'user' AND b.entity_id = members.user_id
+    )
+    SELECT gd.*, ma.avatars AS members_avatar
+    FROM group_data gd, member_avatars ma
 `;
 
 const getUserCreatedGroups = `
