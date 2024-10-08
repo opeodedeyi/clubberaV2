@@ -55,13 +55,38 @@ const attendMeeting = async (req, res) => {
 }
 
 const getMeetingAttendees = async (req, res) => {
-    // incomplete
     const { meeting } = req;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
     try {
-        const result = await pool.query(queries.getMeetingAttendees, [meeting.rows[0].id]);
+        const [attendeesResult, totalResult] = await Promise.all([
+            pool.query(queries.getMeetingAttendees, [meeting.rows[0].id, limit, offset]),
+            pool.query(queries.getTotalAttendees, [meeting.rows[0].id])
+        ]);
+        
+        const attendees = attendeesResult.rows.map(attendee => ({
+            id: attendee.id,
+            unique_url: attendee.unique_url,
+            full_name: attendee.full_name,
+            avatar: attendee.avatar,
+            avatar_key: attendee.avatar_key,
+            is_group_member: attendee.is_group_member
+        }));
+
+        const totalAttendees = parseInt(totalResult.rows[0].total);
+        const totalPages = Math.ceil(totalAttendees / limit);
+
         res.status(200).json({
             success: true,
-            attendees: result.rows
+            attendees: attendees,
+            pagination: {
+                current_page: page,
+                total_pages: totalPages,
+                total_attendees: totalAttendees,
+                per_page: limit
+            }
         });
     } catch (error) {
         console.error('Error:', error);

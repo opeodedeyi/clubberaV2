@@ -12,30 +12,22 @@ const getMeetingByUniqueURL = `
         m.id, m.unique_url, m.title, m.description, m.date_of_meeting, m.time_of_meeting, 
         m.duration, m.capacity, m.location_details,
         g.title AS group_title, g.owner_id AS group_owner_id, g.unique_url AS group_unique_url,
-        l.address AS location, l.lng, l.lat, b.location AS banner, b.key AS banner_key,
+        g.is_private AS group_is_private, g.tagline AS group_tagline,
+        l.address AS location, l.lng, l.lat, 
+        b.location AS banner, b.key AS banner_key,
+        gb.location AS group_banner, gb.key AS group_banner_key,
         (SELECT COUNT(*) FROM meeting_participation mp WHERE mp.meeting_id = m.id AND mp.status = 'attending') AS attending_count,
-        (SELECT COUNT(*) FROM meeting_participation mp WHERE mp.meeting_id = m.id AND mp.status = 'waitlist') AS waitlist_count,
-        (SELECT json_agg(u.unique_url) 
-         FROM meeting_participation mp 
-         JOIN users u ON mp.user_id = u.id 
-         WHERE mp.meeting_id = m.id AND mp.status = 'attending' 
-         LIMIT 5) AS attending_avatars,
-        owner.unique_url AS group_owner_unique_url,
-        owner.full_name AS group_owner_full_name,
-        owner.email AS group_owner_email,
-        owner_banner.location AS group_owner_avatar
+        (SELECT COUNT(*) FROM meeting_participation mp WHERE mp.meeting_id = m.id AND mp.status = 'waitlist') AS waitlist_count
     FROM 
         meetings m
     JOIN
         groups g ON m.group_id = g.id
-    JOIN
-        users owner ON g.owner_id = owner.id
-    LEFT JOIN
-        banners owner_banner ON owner.id = owner_banner.entity_id AND owner_banner.entity_type = 'user'
     LEFT JOIN
         locations l ON m.id = l.entity_id AND l.entity_type = 'meeting'
     LEFT JOIN
         banners b ON m.id = b.entity_id AND b.entity_type = 'meeting'
+    LEFT JOIN
+        banners gb ON g.id = gb.entity_id AND gb.entity_type = 'group'
     WHERE 
         m.unique_url = $1
 `;
