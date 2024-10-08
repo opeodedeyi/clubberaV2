@@ -94,22 +94,26 @@ const getMeetingByUniqueURL = async (req, res) => {
                 ...meetingData,
                 attending_count: parseInt(meetingData.attending_count),
                 waitlist_count: parseInt(meetingData.waitlist_count),
-                attending_avatars: meetingData.attending_avatars || [],
                 user_status: userStatus,
-                group_owner: {
-                    unique_url: meetingData.group_owner_unique_url,
-                    full_name: meetingData.group_owner_full_name,
-                    email: meetingData.group_owner_email,
-                    avatar: meetingData.group_owner_avatar
+                group: {
+                    unique_url: meetingData.group_unique_url,
+                    title: meetingData.group_title,
+                    is_private: meetingData.group_is_private,
+                    tagline: meetingData.group_tagline,
+                    banner: meetingData.group_banner,
+                    banner_key: meetingData.group_banner_key
                 }
             }
         };
 
-        // Remove the individual group owner fields from the main object
-        delete responseObject.meeting.group_owner_unique_url;
-        delete responseObject.meeting.group_owner_full_name;
-        delete responseObject.meeting.group_owner_email;
-        delete responseObject.meeting.group_owner_avatar;
+        // Remove the individual group fields from the main object
+        delete responseObject.meeting.group_unique_url;
+        delete responseObject.meeting.group_title;
+        delete responseObject.meeting.group_is_private;
+        delete responseObject.meeting.group_tagline;
+        delete responseObject.meeting.group_banner;
+        delete responseObject.meeting.group_banner_key;
+        delete responseObject.meeting.group_owner_id;
 
         res.status(200).json(responseObject);
     } catch (error) {
