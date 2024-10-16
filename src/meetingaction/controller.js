@@ -34,6 +34,7 @@ const attendMeeting = async (req, res) => {
         
         res.status(200).json({
             success: true,
+            status: status,
             message: `You are ${status} for the meeting`
         });
     } catch (error) {
