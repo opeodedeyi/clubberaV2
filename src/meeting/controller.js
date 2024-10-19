@@ -67,9 +67,17 @@ const getMeetingByUniqueURL = async (req, res) => {
         let meetingData = meeting.rows[0];
 
         // Format duration
-        const hours = Math.floor(meetingData.duration.hours);
-        const minutes = meetingData.duration.minutes;
-        meetingData.duration = `${hours}:${minutes.toString().padStart(2, '0')}`;
+        let formattedDuration = "0:00";
+
+        console.log('meeting duration - ', meetingData.duration)
+        
+        if (meetingData.duration) {
+            const hours = 'hours' in meetingData.duration ? Math.floor(meetingData.duration.hours) : 0;
+            const minutes = 'minutes' in meetingData.duration ? meetingData.duration.minutes : 0;
+            formattedDuration = `${hours}:${minutes.toString().padStart(2, '0')}`;
+        }
+
+        meetingData.duration = formattedDuration;
 
         // Determine user status
         let userStatus = 'not attending';
