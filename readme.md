@@ -95,3 +95,24 @@ Before you begin, ensure you have the following installed:
 - **AWS Account** (for S3 storage)
 - **Stripe Account** (for payment processing)
 - **Google Cloud Account** (for OAuth and email services)
+
+## Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/motola/clubberaV2.git
+   cd clubberaV2
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Set up environment variables**
+   
+   Create a `.env` file in the root directory (see [Environment Variables](#environment-variables) section)
+
+4. **Set up the database**
+   
+   See the [Database Setup](#database-setup) section for detailed instructions
