@@ -222,3 +222,62 @@ npm start
 - `npm test` - Run tests
 - `npm run test:watch` - Run tests in watch mode
 - `npm run test:coverage` - Run tests with coverage report
+
+## API Documentation
+
+The API is organized into the following modules:
+
+### Core Modules
+
+#### User Management (`/src/user`)
+- User registration and authentication
+- Profile management
+- Password reset and email verification
+- Google OAuth integration
+- User preferences and settings
+
+#### Community (`/src/community`)
+- Create, update, and delete communities
+- Community search with full-text capabilities
+- Community recommendations
+- Role-based permissions (Owner, Admin, Moderator, Member)
+- Community subscriptions and payments
+- Member management
+
+#### Posts (`/src/post`)
+- Create, update, and delete posts
+- Media uploads (images, videos)
+- Post interactions (likes, comments)
+- Feed generation
+
+#### Events (`/src/event`)
+- Create and manage events
+- Event attendance tracking
+- Event notifications
+- Calendar integration
+
+#### Messaging (`/src/message`)
+- Direct messaging
+- Group chats
+- Real-time message delivery via Socket.IO
+- Message history and search
+
+#### Notifications (`/src/notification`)
+- Activity notifications
+- System notifications
+- Push notification support
+- Notification preferences
+
+#### Tags (`/src/tag`)
+- Tag creation and management
+- Tag-based content discovery
+- Popular tags
+
+### Supporting Modules
+
+- **Community Support** (`/src/communitySupport`) - Support ticket system
+- **Help** (`/src/help`) - Help center and FAQs
+- **Subscriptions** (`/src/subscription`) - Subscription management
+- **Temp Upload** (`/src/tempUpload`) - Temporary file uploads
+
+For detailed API endpoints and request/response formats, refer to the README files in each module directory.
