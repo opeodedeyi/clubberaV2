@@ -84,3 +84,14 @@ A comprehensive social networking platform built with Node.js and PostgreSQL, fe
 - **winston** - Logging
 - **node-cron** - Task scheduling
 - **moment-timezone** - Date/time manipulation
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+- **Node.js** (v14 or higher)
+- **npm** or **yarn**
+- **PostgreSQL** (v12 or higher)
+- **AWS Account** (for S3 storage)
+- **Stripe Account** (for payment processing)
+- **Google Cloud Account** (for OAuth and email services)
