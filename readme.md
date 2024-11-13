@@ -281,3 +281,44 @@ The API is organized into the following modules:
 - **Temp Upload** (`/src/tempUpload`) - Temporary file uploads
 
 For detailed API endpoints and request/response formats, refer to the README files in each module directory.
+
+## Testing
+
+The project uses **Jest** and **Supertest** for testing.
+
+### Running Tests
+
+```bash
+# Run all tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run tests with coverage report
+npm run test:coverage
+```
+
+### Test Structure
+
+Tests are organized by module in their respective `tests/` directories:
+- `/src/user/tests/` - User module tests
+- `/src/community/tests/` - Community module tests
+- `/src/post/tests/` - Post module tests
+- `/src/event/tests/` - Event module tests
+- And more...
+
+### Test Helpers
+
+Common test utilities are available in `/src/test-helpers/`:
+- `database.helper.js` - Database setup and teardown
+- `test-setup.js` - Global test configuration
+
+### Writing Tests
+
+Each module should have comprehensive tests covering:
+- Controller logic
+- Model methods
+- Route handlers
+- Validation schemas
+- Integration tests
