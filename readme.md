@@ -1,14 +1,19 @@
 # Clubbera V2
 
-Lightweight documentation for the Clubbera V2 backend: an Express + PostgreSQL API for community-driven features (communities, posts, events, messaging, notifications, and real-time features).
+A comprehensive social networking platform built with Node.js and PostgreSQL, featuring community management, real-time messaging, events, and subscription-based content.
 
-This README collects the high-level project information, quick start steps, and links to the module-specific documentation located under `src/`.
+## Table of Contents
 
-<!-- README will be expanded in progressive commits -->
-
-## Database Schema
-
-## Tables
-# Database Schema
-
-## Tables
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Environment Variables](#environment-variables)
+- [Database Setup](#database-setup)
+- [Running the Application](#running-the-application)
+- [API Documentation](#api-documentation)
+- [Testing](#testing)
+- [Project Structure](#project-structure)
+- [Real-time Features](#real-time-features)
+- [Contributing](#contributing)
+- [License](#license)
