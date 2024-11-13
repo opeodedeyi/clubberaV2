@@ -196,3 +196,29 @@ RATE_LIMIT_MAX_REQUESTS=100
    - And more...
 
    For detailed schema information, refer to the module-specific README files in the `src/` directory.
+
+## Running the Application
+
+### Development Mode
+
+Start the server with automatic restart on file changes:
+
+```bash
+npm run dev
+```
+
+The server will start on `http://localhost:3000` (or the PORT specified in your `.env` file).
+
+### Production Mode
+
+```bash
+npm start
+```
+
+### Available Scripts
+
+- `npm start` - Start the production server
+- `npm run dev` - Start development server with nodemon
+- `npm test` - Run tests
+- `npm run test:watch` - Run tests in watch mode
+- `npm run test:coverage` - Run tests with coverage report
