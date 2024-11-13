@@ -116,3 +116,51 @@ Before you begin, ensure you have the following installed:
 4. **Set up the database**
    
    See the [Database Setup](#database-setup) section for detailed instructions
+
+## Environment Variables
+
+Create a `.env` file in the root directory with the following variables:
+
+```env
+# Server Configuration
+PORT=3000
+NODE_ENV=development
+
+# Database
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=clubbera_v2
+DB_USER=your_db_user
+DB_PASSWORD=your_db_password
+
+# JWT
+JWT_SECRET=your_jwt_secret_key
+JWT_EXPIRES_IN=7d
+
+# AWS S3
+AWS_ACCESS_KEY_ID=your_aws_access_key
+AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+AWS_REGION=your_aws_region
+S3_BUCKET_NAME=your_s3_bucket_name
+
+# Stripe
+STRIPE_SECRET_KEY=your_stripe_secret_key
+STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
+
+# Google OAuth
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+GOOGLE_REDIRECT_URI=your_google_redirect_uri
+
+# Email (Gmail)
+EMAIL_USER=your_email@gmail.com
+EMAIL_PASSWORD=your_email_app_password
+EMAIL_FROM=noreply@clubbera.com
+
+# Frontend URL
+FRONTEND_URL=http://localhost:3001
+
+# Rate Limiting
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
+```
