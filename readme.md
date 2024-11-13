@@ -47,3 +47,40 @@ A comprehensive social networking platform built with Node.js and PostgreSQL, fe
 - Community subscription management
 - Payment tracking and history
 - Automated subscription renewals
+
+## Tech Stack
+
+### Backend
+- **Node.js** - Runtime environment
+- **Express.js** - Web application framework
+- **PostgreSQL** - Primary database
+- **Socket.IO** - Real-time bidirectional communication
+
+### Authentication & Security
+- **JWT (jsonwebtoken)** - Token-based authentication
+- **bcrypt** - Password hashing
+- **express-rate-limit** - API rate limiting
+- **helmet** - HTTP security headers
+- **cors** - Cross-Origin Resource Sharing
+
+### File Storage & Processing
+- **AWS S3** - Cloud file storage
+- **Multer** - File upload handling
+- **sharp** - Image processing
+
+### Payment
+- **Stripe** - Payment processing
+
+### Email & Communication
+- **Nodemailer** - Email sending
+- **Google OAuth 2.0** - Social login
+
+### Testing
+- **Jest** - Testing framework
+- **Supertest** - HTTP assertions
+
+### Utilities
+- **Joi** - Request validation
+- **winston** - Logging
+- **node-cron** - Task scheduling
+- **moment-timezone** - Date/time manipulation
