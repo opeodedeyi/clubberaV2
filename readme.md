@@ -164,3 +164,35 @@ FRONTEND_URL=http://localhost:3001
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
 ```
+
+## Database Setup
+
+1. **Create a PostgreSQL database**
+   ```bash
+   createdb clubbera_v2
+   ```
+
+2. **Run migrations**
+   
+   The database schema is managed through SQL migration files located in the `migrations/` directory.
+   
+   ```bash
+   psql -U your_db_user -d clubbera_v2 -f migrations/add_search_document_to_communities.sql
+   ```
+
+3. **Database Schema**
+
+   The application uses the following main tables:
+   - `users` - User accounts and profiles
+   - `communities` - Community information
+   - `community_members` - Community membership tracking
+   - `posts` - User and community posts
+   - `events` - Event management
+   - `messages` - Direct and group messages
+   - `notifications` - User notifications
+   - `subscriptions` - Community subscriptions
+   - `subscription_payments` - Payment records
+   - `tags` - Tag system
+   - And more...
+
+   For detailed schema information, refer to the module-specific README files in the `src/` directory.
