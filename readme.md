@@ -375,3 +375,31 @@ clubberaV2/
 ├── jest.config.js          # Jest configuration
 └── .env                    # Environment variables (not in repo)
 ```
+
+## Real-time Features
+
+The application uses **Socket.IO** for real-time bidirectional communication.
+
+### Socket Configuration
+
+Socket.IO is configured in `/src/config/socket.js` and initialized in `index.js`.
+
+### Real-time Capabilities
+
+- **Instant Messaging** - Real-time chat messages
+- **Notifications** - Live notification delivery
+- **Online Status** - Track user presence
+- **Event Updates** - Live event notifications
+- **Typing Indicators** - Show when users are typing
+
+### Testing Socket Connections
+
+A test client is available at `test-socket-client.js` for testing Socket.IO connections:
+
+```bash
+node test-socket-client.js
+```
+
+### Socket Events
+
+The application emits and listens to various socket events for different modules. Refer to the Socket.IO configuration file for detailed event specifications.
