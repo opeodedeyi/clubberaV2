@@ -322,3 +322,56 @@ Each module should have comprehensive tests covering:
 - Route handlers
 - Validation schemas
 - Integration tests
+
+## Project Structure
+
+```
+clubberaV2/
+├── src/
+│   ├── community/          # Community management module
+│   │   ├── controllers/    # Request handlers
+│   │   ├── models/         # Database models
+│   │   ├── routes/         # API routes
+│   │   ├── services/       # Business logic
+│   │   ├── tests/          # Module tests
+│   │   └── validators/     # Request validation
+│   │
+│   ├── user/               # User management module
+│   ├── post/               # Posts module
+│   ├── event/              # Events module
+│   ├── message/            # Messaging module
+│   ├── notification/       # Notifications module
+│   ├── tag/                # Tags module
+│   ├── subscription/       # Subscriptions module
+│   ├── communitySupport/   # Support tickets
+│   ├── help/               # Help center
+│   ├── tempUpload/         # Temporary uploads
+│   │
+│   ├── middleware/         # Express middleware
+│   │   ├── auth.js         # Authentication
+│   │   ├── role.js         # Authorization
+│   │   └── validate.js     # Request validation
+│   │
+│   ├── services/           # Shared services
+│   │   ├── email.service.js
+│   │   ├── s3.service.js
+│   │   ├── payment.service.js
+│   │   └── token.service.js
+│   │
+│   ├── config/             # Configuration
+│   │   ├── db.js           # Database config
+│   │   └── socket.js       # Socket.IO config
+│   │
+│   ├── utils/              # Utility functions
+│   │   ├── ApiError.js
+│   │   ├── catchAsync.js
+│   │   └── timezone.helper.js
+│   │
+│   └── test-helpers/       # Test utilities
+│
+├── migrations/             # Database migrations
+├── index.js                # Application entry point
+├── package.json            # Dependencies
+├── jest.config.js          # Jest configuration
+└── .env                    # Environment variables (not in repo)
+```
