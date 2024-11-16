@@ -445,3 +445,22 @@ module-name/
 ├── validators/
 └── README.md
 ```
+
+## License
+
+This project is proprietary software. All rights reserved.
+
+## Contact & Support
+
+For questions, support, or feedback:
+
+- **Repository**: [https://github.com/motola/clubberaV2](https://github.com/motola/clubberaV2)
+- **Issues**: [GitHub Issues](https://github.com/motola/clubberaV2/issues)
+
+## Acknowledgments
+
+Built with modern web technologies and best practices to provide a robust social networking platform.
+
+---
+
+**Clubbera V2** - Connecting communities, one interaction at a time.
