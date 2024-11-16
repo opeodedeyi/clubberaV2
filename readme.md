@@ -403,3 +403,45 @@ node test-socket-client.js
 ### Socket Events
 
 The application emits and listens to various socket events for different modules. Refer to the Socket.IO configuration file for detailed event specifications.
+
+## Contributing
+
+We welcome contributions to Clubbera V2! Here's how you can help:
+
+### Getting Started
+
+1. Fork the repository
+2. Create a new branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Write or update tests as needed
+5. Ensure all tests pass (`npm test`)
+6. Commit your changes (`git commit -m 'Add some amazing feature'`)
+7. Push to the branch (`git push origin feature/amazing-feature`)
+8. Open a Pull Request
+
+### Code Style
+
+- Follow the existing code style
+- Use meaningful variable and function names
+- Add comments for complex logic
+- Keep functions small and focused
+
+### Testing
+
+- Write tests for new features
+- Ensure existing tests pass
+- Maintain or improve code coverage
+
+### Module Structure
+
+When adding new modules, follow the existing structure:
+```
+module-name/
+├── controllers/
+├── models/
+├── routes/
+├── services/
+├── tests/
+├── validators/
+└── README.md
+```
