@@ -16,3 +16,17 @@ This module integrates with Stripe for payment processing and supports subscript
 - [Errors](#errors)
 - [Testing](#testing)
 - [Examples](#examples)
+
+## Overview
+
+The Subscription module provides plan management, subscription lifecycle handling (start, renew, cancel), payment tracking, and webhook processing for Stripe events.
+
+## Features
+
+- Create and manage subscription plans (price, interval, currency)
+- Subscribe/unsubscribe users to plans
+- Trial support and proration (Stripe-managed)
+- Automatic renewals via Stripe
+- Webhook handling for invoice/payment events
+- Payment history and receipts
+- Community access gating for subscribers
