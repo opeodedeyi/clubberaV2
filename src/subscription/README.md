@@ -40,3 +40,20 @@ Core tables used by this module (names may vary depending on your implementation
 - `subscription_payments` – payment/invoice records (id, subscription_id, amount_cents, currency, status, stripe_invoice_id, stripe_payment_intent_id)
 
 Related models can be found under `src/subscription/models/` and community-related subscription access under `src/community/models/` (e.g., `subscription.model.js`, `subscriptionPayment.model.js`).
+
+## Environment Variables
+
+Ensure these keys exist in your root `.env` (see root README for full list):
+
+```env
+# Stripe
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+# App
+FRONTEND_URL=http://localhost:3001
+```
+
+Notes:
+- Webhooks require the exact `STRIPE_WEBHOOK_SECRET` from your Stripe dashboard or CLI.
+- Use test keys locally; never commit secrets.
