@@ -57,3 +57,28 @@ FRONTEND_URL=http://localhost:3001
 Notes:
 - Webhooks require the exact `STRIPE_WEBHOOK_SECRET` from your Stripe dashboard or CLI.
 - Use test keys locally; never commit secrets.
+
+## API Endpoints
+
+Base path may vary (e.g., `/api/subscriptions`). The following describes typical routes:
+
+### Plans
+- `POST /plans` – Create a plan (admin)
+- `GET /plans` – List plans
+- `GET /plans/:planId` – Get plan detail
+- `PATCH /plans/:planId` – Update plan (admin)
+- `DELETE /plans/:planId` – Archive/delete plan (admin)
+
+### Subscriptions
+- `POST /` – Create a subscription for the authenticated user (planId required)
+- `GET /` – List current user subscriptions
+- `GET /:subscriptionId` – Get a subscription detail
+- `POST /:subscriptionId/cancel` – Cancel at period end
+- `POST /:subscriptionId/resume` – Resume a canceled subscription (if supported)
+
+### Payments
+- `GET /:subscriptionId/payments` – List payments/invoices
+- `GET /payments/:paymentId` – Payment detail
+
+### Webhooks
+- `POST /webhook/stripe` – Stripe webhook receiver (no auth; signature verified)
