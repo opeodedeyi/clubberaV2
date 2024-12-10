@@ -82,3 +82,23 @@ Base path may vary (e.g., `/api/subscriptions`). The following describes typical
 
 ### Webhooks
 - `POST /webhook/stripe` – Stripe webhook receiver (no auth; signature verified)
+
+## Workflows
+
+### 1) Create a Plan (Admin)
+1. Admin calls `POST /plans` with name, price_cents, currency, interval
+2. Backend creates Stripe Product/Price and stores `stripe_price_id`
+
+### 2) Subscribe a User
+1. Authenticated user calls `POST /` with `planId`
+2. Backend creates a Stripe Checkout Session or Payment Intent
+3. On success, `subscriptions` row is created/updated
+4. User gains gated access (e.g., to a community)
+
+### 3) Renewals
+- Stripe handles renewals automatically based on the plan interval
+- Webhooks update local `subscriptions` and `subscription_payments`
+
+### 4) Cancel
+- User calls `POST /:subscriptionId/cancel` to set `cancel_at_period_end=true`
+- Webhooks finalize status at the end of the billing period
