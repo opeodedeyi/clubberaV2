@@ -102,3 +102,18 @@ Base path may vary (e.g., `/api/subscriptions`). The following describes typical
 ### 4) Cancel
 - User calls `POST /:subscriptionId/cancel` to set `cancel_at_period_end=true`
 - Webhooks finalize status at the end of the billing period
+
+## Webhooks
+
+Stripe sends events that the backend verifies and processes. Typical events:
+
+- `invoice.payment_succeeded` – mark payment as `paid`, extend subscription period
+- `invoice.payment_failed` – record failed payment, notify user
+- `customer.subscription.updated` – update status (active, past_due, canceled)
+- `customer.subscription.deleted` – set subscription as canceled/ended
+
+Signature verification:
+
+- Extract `Stripe-Signature` header
+- Verify with `STRIPE_WEBHOOK_SECRET`
+- Parse and route by event type
