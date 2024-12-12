@@ -117,3 +117,15 @@ Signature verification:
 - Extract `Stripe-Signature` header
 - Verify with `STRIPE_WEBHOOK_SECRET`
 - Parse and route by event type
+
+## Errors
+
+Common error cases and recommended responses:
+
+- `plan_not_found` – 404 when planId is invalid
+- `subscription_conflict` – 409 if user already has an active subscription for the plan
+- `payment_required` – 402 when payment setup failed
+- `webhook_signature_invalid` – 400 when Stripe signature verification fails
+- `forbidden` – 403 for admin-only routes
+
+Log details internally (do not leak secrets) and return user-friendly messages.
