@@ -129,3 +129,19 @@ Common error cases and recommended responses:
 - `forbidden` – 403 for admin-only routes
 
 Log details internally (do not leak secrets) and return user-friendly messages.
+
+## Testing
+
+This repository uses Jest and Supertest (see root README).
+
+### Commands
+```bash
+npm test
+npm run test:watch
+npm run test:coverage
+```
+
+### Structure
+- Module tests should live under `src/subscription/tests/`
+- Use `src/test-helpers/database.helper.js` for DB setup/teardown
+- Mock Stripe SDK calls for deterministic results
