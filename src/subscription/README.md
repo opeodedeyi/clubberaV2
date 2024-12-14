@@ -145,3 +145,41 @@ npm run test:coverage
 - Module tests should live under `src/subscription/tests/`
 - Use `src/test-helpers/database.helper.js` for DB setup/teardown
 - Mock Stripe SDK calls for deterministic results
+
+## Examples
+
+### Create Plan (admin)
+```http
+POST /api/subscriptions/plans
+Content-Type: application/json
+
+{
+	"name": "Pro Monthly",
+	"price_cents": 999,
+	"currency": "usd",
+	"interval": "month"
+}
+```
+
+### Subscribe (user)
+```http
+POST /api/subscriptions
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+	"planId": "plan_123"
+}
+```
+
+### Cancel at period end
+```bash
+curl -X POST \
+	-H "Authorization: Bearer $TOKEN" \
+	http://localhost:3000/api/subscriptions/sub_123/cancel
+```
+
+### Stripe CLI webhook (local)
+```bash
+stripe listen --forward-to localhost:3000/api/subscriptions/webhook/stripe
+```
