@@ -3,6 +3,7 @@
 ## Tables
 
 ### Users
+
 ```sql
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
@@ -16,6 +17,7 @@ CREATE TABLE users (
     preferences JSONB DEFAULT '{}'::jsonb,
     is_email_confirmed BOOLEAN DEFAULT false,
     is_active BOOLEAN DEFAULT true,
+    role VARCHAR(50) DEFAULT 'user'; -- e.g., "superuser", "staff", "user"
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
@@ -25,6 +27,7 @@ CREATE INDEX idx_users_preferences ON users USING gin (preferences);
 ```
 
 ### User Tokens
+
 ```sql
 CREATE TABLE user_tokens (
     id SERIAL PRIMARY KEY,
@@ -35,7 +38,8 @@ CREATE TABLE user_tokens (
         'password_reset',
         'api_access',
         'google_auth',
-        'passwordless_login'
+        'passwordless_login',
+        'email_verification_code'
     )),
     expires_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -46,6 +50,7 @@ CREATE INDEX idx_user_tokens_user_id ON user_tokens(user_id);
 ```
 
 ### Locations
+
 ```sql
 CREATE TABLE locations (
     id SERIAL PRIMARY KEY,
@@ -63,8 +68,8 @@ CREATE TABLE locations (
 CREATE INDEX idx_locations_entity ON locations(entity_type, entity_id);
 ```
 
-
 ### Images
+
 ```sql
 CREATE TABLE images (
     id SERIAL PRIMARY KEY,
@@ -76,13 +81,13 @@ CREATE TABLE images (
     key VARCHAR(255) NOT NULL,
     alt_text VARCHAR(255),
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT unique_profile_images UNIQUE (entity_type, entity_id, image_type) 
+    CONSTRAINT unique_profile_images UNIQUE (entity_type, entity_id, image_type)
     WHERE (entity_type IN ('user', 'community'))
 );
 ```
 
-
 ### Tags
+
 ```sql
 CREATE TABLE tags (
     id SERIAL PRIMARY KEY,

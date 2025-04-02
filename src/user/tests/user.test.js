@@ -43,6 +43,8 @@ const testUser = {
     unique_url: "test-user",
     bio: "Test bio",
     is_email_confirmed: false,
+    is_active: true,
+    role: "user",
     created_at: new Date(),
 };
 

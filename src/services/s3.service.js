@@ -1,73 +1,79 @@
-require('dotenv').config();
-const { v4: uuidv4 } = require('uuid');
-const AWS = require('@aws-sdk/client-s3');
+const {
+    S3Client,
+    PutObjectCommand,
+    DeleteObjectCommand,
+} = require("@aws-sdk/client-s3");
+const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
+const ApiError = require("../utils/ApiError");
 
+class S3Service {
+    constructor() {
+        // Initialize the S3 client with AWS SDK v3
+        this.client = new S3Client({
+            region: process.env.AWS_REGION,
+            credentials: {
+                accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+                secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+            },
+        });
+        this.bucket = process.env.AWS_S3_BUCKET;
+    }
 
-const s3 = new AWS.S3Client({
-    credentials:
-        {
-            accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-            secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-            region: process.env.AWS_REGION
+    async generatePresignedUrl(fileType, entityType, entityId, imageType) {
+        // Validate file type
+        const validTypes = ["image/jpeg", "image/png", "image/webp"];
+        if (!validTypes.includes(fileType)) {
+            throw new ApiError(
+                "Invalid file type. Only JPEG, PNG and WebP are allowed",
+                400
+            );
         }
-});
 
+        // Get file extension
+        const extension = fileType.split("/")[1];
 
-const uploadToS3 = async (base64data, filename) => {
-    const uniqueFilename = `${uuidv4()}-${filename}`;
+        // Generate a unique filename using user ID to ensure overwriting old images
+        // Format: entity-type/entity-id/image-type-timestamp.extension
+        const key = `${entityType}/${entityId}/${imageType}-${Date.now()}.${extension}`;
 
-    const base64Data = base64data.split(',')[1];
-    const buffer = Buffer.from(base64Data, 'base64');
+        try {
+            // Create a PutObject command
+            const command = new PutObjectCommand({
+                Bucket: this.bucket,
+                Key: key,
+                ContentType: fileType,
+            });
 
-    const mimeType = base64data.split(',')[0].split(':')[1].split(';')[0];
+            // Generate pre-signed URL with 5 minute expiration
+            const uploadUrl = await getSignedUrl(this.client, command, {
+                expiresIn: 300,
+            });
 
-    const params = {
-        Bucket: process.env.AWS_BUCKET_NAME,
-        Key: uniqueFilename,
-        Body: buffer,
-        ContentType: mimeType,
-        ACL: 'public-read'
-    };
-
-    const command = new AWS.PutObjectCommand(params)
-
-    try {
-        await s3.send(command);
-        const objectUrl = `https://${params.Bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${params.Key}`;
-
-        return {
-            location: objectUrl,
-            key: uniqueFilename
-        };
-    } catch (error) {
-        console.log(`Failed to upload image to S3: ${error}`);
-    }
-};
-
-
-const deleteFromS3 = async (key) => {
-    if (!key) {
-        console.log(`no image key provided`);
-        return;
+            return {
+                uploadUrl,
+                key,
+            };
+        } catch (error) {
+            console.error("Error generating pre-signed URL:", error);
+            throw new ApiError("Failed to generate upload URL", 500);
+        }
     }
 
-    const params = {
-        Bucket: process.env.AWS_BUCKET_NAME,
-        Key: key
-    };
+    async deleteObject(key) {
+        try {
+            const command = new DeleteObjectCommand({
+                Bucket: this.bucket,
+                Key: key,
+            });
 
-    const command = new AWS.DeleteObjectCommand(params);
-
-    try {
-        await s3.send(command);
-        console.log(`Successfully deleted ${key} from S3`);
-    } catch (error) {
-        console.log(`Failed to delete ${key} from S3: ${error}`);
+            await this.client.send(command);
+            return true;
+        } catch (error) {
+            console.error("Error deleting object from S3:", error);
+            // Don't throw here - we don't want to fail if deletion doesn't work
+            return false;
+        }
     }
-};
+}
 
-
-module.exports = {
-    uploadToS3,
-    deleteFromS3
-};
+module.exports = new S3Service();
