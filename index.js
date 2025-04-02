@@ -1,41 +1,64 @@
-const express = require('express');
-const userRoutes = require('./src/user/routes');
-const groupRoutes = require('./src/group/routes');
-const groupRequestRoutes = require('./src/grouprequest/routes');
-const announcementRoutes = require('./src/announcement/routes');
-const discussionRoutes = require('./src/discussion/routes');
-const meetingRoutes = require('./src/meeting/routes');
-const meetingActionRoutes = require('./src/meetingaction/routes');
-const searchRoutes = require('./src/search/routes');
-const searchGroupsRoutes = require('./src/groupsearch/routes');
-const feedRoutes = require('./src/feed/routes');
+const express = require("express");
+var cors = require("cors");
+const helmet = require("helmet");
+const morgan = require("morgan");
+
+const userRoutes = require("./src/user/routes/user.routes");
+const accountRoutes = require("./src/user/routes/account.routes");
+const imageRoutes = require("./src/user/routes/image.routes");
+const tagRoutes = require("./src/tag/routes/tag.routes");
+
+const ApiError = require("./src/utils/ApiError");
+require("dotenv").config();
+
+// Initialize express app
 const app = express();
-require('dotenv').config();
-var cors = require('cors');
-
-
 const port = process.env.PORT || 4000;
 
-
-app.use(cors())
+// Middleware
+app.use(helmet()); // Security headers
+app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
+app.use(morgan("dev")); // Request logging
 
-app.get('/', (req, res) => {
+// Health check route
+app.get("/", (req, res) => {
     res.json({
-        "message": "Hello World!",
-    })
+        status: "success",
+        message: "API is running",
+        version: "1.0.0",
+    });
 });
 
-app.use('/api/user', userRoutes);
-app.use('/api/group', groupRoutes);
-app.use('/api/grouprequest', groupRequestRoutes);
-app.use('/api/announcement', announcementRoutes);
-app.use('/api/discussion', discussionRoutes);
-app.use('/api/meeting', meetingRoutes);
-app.use('/api/meetingaction', meetingActionRoutes);
-app.use('/api/search', searchRoutes);
-app.use('/api/search', searchGroupsRoutes);
-app.use('/api/feed', feedRoutes);
+// Routes
+app.use("/api/users", userRoutes);
+app.use("/api/accounts", accountRoutes);
+app.use("/api/images", imageRoutes);
+app.use("/api/tags", tagRoutes);
 
+// Handle 404 routes
+app.use((req, res, next) => {
+    next(new ApiError(`Cannot find ${req.originalUrl} on this server`, 404));
+});
 
-app.listen(port, () => console.log(`app listening on port ${port}`));
+// Error handling middleware
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+
+    const statusCode = err.statusCode || 500;
+    const message = err.message || "Internal Server Error";
+
+    res.status(statusCode).json({
+        status: "error",
+        message,
+        stack: process.env.NODE_ENV === "development" ? err.stack : undefined,
+    });
+});
+
+app.listen(port, () => {
+    console.log(`app listening on port ${port}`);
+});
+
+// For testing purposes
+module.exports = app;
