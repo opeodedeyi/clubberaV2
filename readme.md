@@ -106,3 +106,62 @@ CREATE TABLE tag_assignments (
     UNIQUE (tag_id, entity_type, entity_id, assignment_type)
 );
 ```
+
+```sql
+-- Communities table
+CREATE TABLE communities (
+    id SERIAL PRIMARY KEY,
+    unique_url VARCHAR(255) UNIQUE NOT NULL,
+    name VARCHAR(50) NOT NULL,
+    tagline VARCHAR(150),
+    description TEXT,
+    guidelines TEXT,
+    is_private BOOLEAN DEFAULT false,
+    is_active BOOLEAN DEFAULT true,
+    created_by INT REFERENCES users(id),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Community members table
+CREATE TABLE community_members (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    community_id INT REFERENCES communities(id) ON DELETE CASCADE,
+    role VARCHAR(50) CHECK (role IN ('owner', 'organizer', 'moderator', 'member')) DEFAULT 'member',
+    joined_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, community_id)
+);
+
+-- Community restrictions table (for mutes and bans)
+CREATE TABLE community_restrictions (
+    id SERIAL PRIMARY KEY,
+    community_id INT REFERENCES communities(id) ON DELETE CASCADE,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    type VARCHAR(50) CHECK (type IN ('mute', 'ban')) NOT NULL,
+    reason TEXT,
+    applied_by INT REFERENCES users(id),
+    expires_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(community_id, user_id, type) WHERE expires_at IS NULL OR expires_at > NOW()
+);
+
+-- Join requests for private communities
+CREATE TABLE community_join_requests (
+    id SERIAL PRIMARY KEY,
+    community_id INT REFERENCES communities(id) ON DELETE CASCADE,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    message TEXT,
+    status VARCHAR(50) CHECK (status IN ('pending', 'approved', 'rejected')) DEFAULT 'pending',
+    responded_by INT REFERENCES users(id),
+    responded_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(community_id, user_id, status) WHERE status = 'pending'
+);
+
+-- Indexes for better performance
+CREATE INDEX idx_community_members_community_id ON community_members(community_id);
+CREATE INDEX idx_community_members_user_id ON community_members(user_id);
+CREATE INDEX idx_communities_created_by ON communities(created_by);
+CREATE INDEX idx_communities_is_active ON communities(is_active);
+```

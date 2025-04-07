@@ -7,6 +7,7 @@ const userRoutes = require("./src/user/routes/user.routes");
 const accountRoutes = require("./src/user/routes/account.routes");
 const imageRoutes = require("./src/user/routes/image.routes");
 const tagRoutes = require("./src/tag/routes/tag.routes");
+const communityRoutes = require("./src/community/routes/community.routes");
 
 const ApiError = require("./src/utils/ApiError");
 require("dotenv").config();
@@ -36,6 +37,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/accounts", accountRoutes);
 app.use("/api/images", imageRoutes);
 app.use("/api/tags", tagRoutes);
+app.use("/api/communities", communityRoutes);
 
 // Handle 404 routes
 app.use((req, res, next) => {
@@ -56,9 +58,11 @@ app.use((err, req, res, next) => {
     });
 });
 
-app.listen(port, () => {
-    console.log(`app listening on port ${port}`);
-});
+if (require.main === module) {
+    app.listen(port, () => {
+        console.log(`app listening on port ${port}`);
+    });
+}
 
 // For testing purposes
 module.exports = app;
