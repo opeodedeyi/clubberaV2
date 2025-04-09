@@ -1,10 +1,15 @@
+// src/community/routes/community.routes.js
+
 const express = require("express");
 const router = express.Router();
 const communityController = require("../controllers/community.controller");
+const subscriptionController = require("../controllers/subscription.controller");
 const communityValidator = require("../validators/community.validator");
+const subscriptionValidator = require("../validators/subscription.validator");
+const restrictionRoutes = require("./restriction.routes");
 const { authenticate } = require("../../middleware/auth");
-const { requireRole } = require("../../middleware/role");
 const { verifyEmail } = require("../../middleware/verifyEmail");
+const { requireRole } = require("../../middleware/role");
 
 // Create a new community
 router.post(
@@ -69,5 +74,50 @@ router.put(
     communityValidator.respondToJoinRequest,
     communityController.respondToJoinRequest
 );
+
+// Subscription related routes - now using the subscription controller
+// Get community subscription details
+router.get(
+    "/:id/subscription",
+    authenticate,
+    subscriptionController.getCommunitySubscription
+);
+
+// Get available subscription plans
+router.get("/subscription-plans", subscriptionController.getSubscriptionPlans);
+
+// Upgrade to Pro plan
+router.post(
+    "/:id/subscription/upgrade",
+    authenticate,
+    subscriptionValidator.upgradeSubscription,
+    subscriptionController.upgradeToPro
+);
+
+// Downgrade to Free plan
+router.post(
+    "/:id/subscription/downgrade",
+    authenticate,
+    subscriptionController.downgradeToFree
+);
+
+// Cancel subscription
+router.post(
+    "/:id/subscription/cancel",
+    authenticate,
+    subscriptionValidator.cancelSubscription,
+    subscriptionController.cancelSubscription
+);
+
+// Get payment history
+router.get(
+    "/:id/subscription/payments",
+    authenticate,
+    subscriptionValidator.getPaymentHistory,
+    subscriptionController.getPaymentHistory
+);
+
+// Use restriction routes
+router.use("/:id/members", restrictionRoutes);
 
 module.exports = router;

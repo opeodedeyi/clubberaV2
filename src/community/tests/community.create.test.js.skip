@@ -10,6 +10,7 @@ jest.mock("../models/community.model");
 jest.mock("../models/location.model");
 jest.mock("../models/image.model");
 jest.mock("../models/tag.model");
+jest.mock("../models/subscription.model");
 jest.mock("../../middleware/auth", () => ({
     authenticate: jest.fn((req, res, next) => {
         // By default, add a verified user to the request
@@ -40,6 +41,7 @@ const communityModel = require("../models/community.model");
 const locationModel = require("../models/location.model");
 const imageModel = require("../models/image.model");
 const tagModel = require("../models/tag.model");
+const subscriptionModel = require("../models/subscription.model");
 
 describe("Community Creation API", () => {
     // Test community data
@@ -87,9 +89,6 @@ describe("Community Creation API", () => {
             },
         ]);
 
-        db.query = jest.fn().mockResolvedValue({ rows: [] });
-        db.end = jest.fn().mockResolvedValue();
-
         // Mock community model
         communityModel.create = jest.fn().mockImplementation((data) => {
             if (data.useTransaction) {
@@ -114,6 +113,16 @@ describe("Community Creation API", () => {
             community_id: testCommunity.id,
             user_id: 1,
             role: "owner",
+        });
+
+        // Mock subscription model
+        subscriptionModel.createFreeSubscription = jest.fn().mockResolvedValue({
+            id: 1,
+            community_id: testCommunity.id,
+            plan: "free",
+            status: "active",
+            created_by: 1,
+            created_at: new Date().toISOString(),
         });
 
         // Mock location model
@@ -207,6 +216,12 @@ describe("Community Creation API", () => {
                 user_id: 1,
                 role: "owner",
             });
+
+            // Verify subscription creation
+            expect(
+                subscriptionModel.createFreeSubscription
+            ).toHaveBeenCalledWith(testCommunity.id, 1);
+
             expect(locationModel.create).toHaveBeenCalled();
             expect(tagModel.assignTagByName).toHaveBeenCalledTimes(2); // Once for each tag
             expect(tagModel.assignTagByName).toHaveBeenCalledWith({

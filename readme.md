@@ -129,6 +129,7 @@ CREATE TABLE community_members (
     user_id INT REFERENCES users(id) ON DELETE CASCADE,
     community_id INT REFERENCES communities(id) ON DELETE CASCADE,
     role VARCHAR(50) CHECK (role IN ('owner', 'organizer', 'moderator', 'member')) DEFAULT 'member',
+    is_premium BOOLEAN DEFAULT false;
     joined_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, community_id)
 );
@@ -164,4 +165,87 @@ CREATE INDEX idx_community_members_community_id ON community_members(community_i
 CREATE INDEX idx_community_members_user_id ON community_members(user_id);
 CREATE INDEX idx_communities_created_by ON communities(created_by);
 CREATE INDEX idx_communities_is_active ON communities(is_active);
+
+
+-- Subscription plans table
+CREATE TABLE subscription_plans (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    code VARCHAR(50) NOT NULL UNIQUE, -- 'free', 'pro_monthly', 'pro_yearly', etc.
+    description TEXT,
+    price DECIMAL(10, 2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'USD',
+    billing_interval VARCHAR(20) NOT NULL, -- 'monthly', 'yearly', 'one_time'
+    features JSONB DEFAULT '{}'::jsonb, -- Store features as JSON
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Price history for subscription plans
+CREATE TABLE subscription_price_history (
+    id SERIAL PRIMARY KEY,
+    plan_id INT REFERENCES subscription_plans(id),
+    price DECIMAL(10, 2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'USD',
+    effective_from TIMESTAMPTZ NOT NULL,
+    effective_to TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Updated community subscriptions table
+CREATE TABLE community_subscriptions (
+    id SERIAL PRIMARY KEY,
+    community_id INT REFERENCES communities(id) ON DELETE CASCADE,
+    plan_id INT REFERENCES subscription_plans(id),
+    status VARCHAR(50) NOT NULL CHECK (status IN ('active', 'past_due', 'canceled', 'expired')),
+    starts_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    current_period_start TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    current_period_end TIMESTAMPTZ,
+    canceled_at TIMESTAMPTZ,
+    cancel_at_period_end BOOLEAN DEFAULT false,
+    provider VARCHAR(50), -- 'stripe', 'paypal', etc.
+    provider_subscription_id VARCHAR(255),
+    created_by INT REFERENCES users(id),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(community_id)
+);
+
+-- Subscription payment history
+CREATE TABLE subscription_payments (
+    id SERIAL PRIMARY KEY,
+    subscription_id INT REFERENCES community_subscriptions(id),
+    amount DECIMAL(10, 2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'USD',
+    payment_method VARCHAR(50), -- 'credit_card', 'paypal', etc.
+    payment_provider VARCHAR(50), -- 'stripe', 'paypal', etc.
+    provider_transaction_id VARCHAR(255),
+    status VARCHAR(50) NOT NULL, -- 'succeeded', 'failed', 'pending', etc.
+    billing_period_start TIMESTAMPTZ,
+    billing_period_end TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Add initial subscription plans
+INSERT INTO subscription_plans (name, code, description, price, billing_interval, features)
+VALUES
+('Free Plan', 'free', 'Basic community features', 0.00, 'monthly',
+    '{"pro_features": false, "emails": 0}'::jsonb),
+('Pro Monthly', 'pro_monthly', 'Advanced community features with monthly billing', 9.99, 'monthly',
+    '{"pro_features": true, "emails": 1000}'::jsonb),
+('Pro Yearly', 'pro_yearly', 'Advanced community features with yearly billing', 99.99, 'yearly',
+    '{"pro_features": true, "emails": 1000}'::jsonb);
+
+-- Initialize price history
+INSERT INTO subscription_price_history (plan_id, price, currency, effective_from)
+VALUES
+(1, 0.00, 'USD', CURRENT_TIMESTAMP),
+(2, 9.99, 'USD', CURRENT_TIMESTAMP),
+(3, 99.99, 'USD', CURRENT_TIMESTAMP);
+
+-- Create indexes for better performance
+CREATE INDEX idx_community_subscriptions_plan_id ON community_subscriptions(plan_id);
+CREATE INDEX idx_subscription_payments_subscription_id ON subscription_payments(subscription_id);
+CREATE INDEX idx_subscription_price_history_plan_id ON subscription_price_history(plan_id);
 ```

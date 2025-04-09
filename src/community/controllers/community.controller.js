@@ -1,7 +1,10 @@
+// src/community/controllers/community.controller.js
+
 const communityModel = require("../models/community.model");
 const locationModel = require("../models/location.model");
 const imageModel = require("../models/image.model");
 const tagModel = require("../models/tag.model");
+const subscriptionModel = require("../models/subscription.model");
 const db = require("../../config/db");
 const ApiError = require("../../utils/ApiError");
 
@@ -34,6 +37,11 @@ class CommunityController {
                 user_id: userId,
                 role: "owner",
             });
+
+            await subscriptionModel.createFreeSubscription(
+                community.id,
+                userId
+            );
 
             let locationData = null;
             if (location && (location.city || (location.lat && location.lng))) {
@@ -88,12 +96,18 @@ class CommunityController {
                 });
             }
 
+            // Get subscription details
+            const subscription = await subscriptionModel.getByCommunitySummary(
+                community.id
+            );
+
             const completeData = {
                 ...community,
                 location: locationData,
                 tags: tagsData,
                 profile_image: profileImageData,
                 cover_image: coverImageData,
+                subscription: subscription,
             };
 
             res.status(201).json({

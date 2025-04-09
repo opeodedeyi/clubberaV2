@@ -31,12 +31,10 @@ class CommunityModel {
             ],
         };
 
-        // For transactional use
         if (data.useTransaction) {
             return query;
         }
 
-        // For direct use
         const result = await db.query(query.text, query.values);
         return result.rows[0];
     }
@@ -45,7 +43,6 @@ class CommunityModel {
         let query;
         let params;
 
-        // Check if identifier is a number (ID) or string (unique_url)
         if (!isNaN(identifier)) {
             query = "SELECT * FROM communities WHERE id = $1";
             params = [identifier];
@@ -54,7 +51,6 @@ class CommunityModel {
             params = [identifier];
         }
 
-        // Only include active communities unless specifically requested
         if (!includeInactive) {
             query += " AND is_active = true";
         }
@@ -69,7 +65,7 @@ class CommunityModel {
             is_private,
             created_by,
             member_id,
-            is_active = true, // Default to active communities only
+            is_active = true,
             limit = 20,
             offset = 0,
             order_by = "created_at",
@@ -81,20 +77,17 @@ class CommunityModel {
         let paramIndex = 1;
         let whereClause = [];
 
-        // Join for member_id filter if provided
         if (member_id) {
             query += " JOIN community_members cm ON c.id = cm.community_id";
             whereClause.push(`cm.user_id = $${paramIndex++}`);
             queryParams.push(member_id);
         }
 
-        // Active status filter
         if (is_active !== null && is_active !== undefined) {
             whereClause.push(`c.is_active = $${paramIndex++}`);
             queryParams.push(is_active);
         }
 
-        // Add search condition
         if (search) {
             whereClause.push(
                 `(c.name ILIKE $${paramIndex++} OR c.tagline ILIKE $${paramIndex++} OR c.description ILIKE $${paramIndex++})`
@@ -103,24 +96,20 @@ class CommunityModel {
             queryParams.push(searchPattern, searchPattern, searchPattern);
         }
 
-        // Add is_private filter
         if (is_private !== undefined) {
             whereClause.push(`c.is_private = $${paramIndex++}`);
             queryParams.push(is_private);
         }
 
-        // Add created_by filter
         if (created_by) {
             whereClause.push(`c.created_by = $${paramIndex++}`);
             queryParams.push(created_by);
         }
 
-        // Add WHERE clause if any conditions exist
         if (whereClause.length > 0) {
             query += " WHERE " + whereClause.join(" AND ");
         }
 
-        // Add ORDER BY clause
         const validColumns = ["created_at", "name", "updated_at"];
         const validDirections = ["ASC", "DESC"];
 
@@ -135,7 +124,6 @@ class CommunityModel {
 
         query += ` ORDER BY c.${sanitizedOrderBy} ${sanitizedOrderDir}`;
 
-        // Add pagination
         query += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
         queryParams.push(limit, offset);
 
@@ -157,20 +145,17 @@ class CommunityModel {
         let paramIndex = 1;
         let whereClause = [];
 
-        // Join for member_id filter if provided
         if (member_id) {
             query += " JOIN community_members cm ON c.id = cm.community_id";
             whereClause.push(`cm.user_id = $${paramIndex++}`);
             queryParams.push(member_id);
         }
 
-        // Active status filter
         if (is_active !== null && is_active !== undefined) {
             whereClause.push(`c.is_active = $${paramIndex++}`);
             queryParams.push(is_active);
         }
 
-        // Add search condition
         if (search) {
             whereClause.push(
                 `(c.name ILIKE $${paramIndex++} OR c.tagline ILIKE $${paramIndex++} OR c.description ILIKE $${paramIndex++})`
@@ -179,19 +164,16 @@ class CommunityModel {
             queryParams.push(searchPattern, searchPattern, searchPattern);
         }
 
-        // Add is_private filter
         if (is_private !== undefined) {
             whereClause.push(`c.is_private = $${paramIndex++}`);
             queryParams.push(is_private);
         }
 
-        // Add created_by filter
         if (created_by) {
             whereClause.push(`c.created_by = $${paramIndex++}`);
             queryParams.push(created_by);
         }
 
-        // Add WHERE clause if any conditions exist
         if (whereClause.length > 0) {
             query += " WHERE " + whereClause.join(" AND ");
         }
@@ -213,7 +195,6 @@ class CommunityModel {
         const queryParams = [];
         let paramIndex = 1;
 
-        // Build SET clause for allowed fields
         for (const [key, value] of Object.entries(data)) {
             if (allowedFields.includes(key)) {
                 setValues.push(`${key} = $${paramIndex++}`);
@@ -221,17 +202,13 @@ class CommunityModel {
             }
         }
 
-        // Add updated_at timestamp
         setValues.push(`updated_at = $${paramIndex++}`);
         queryParams.push(new Date());
 
-        // No fields to update
         if (setValues.length === 1) {
-            // Only updated_at was added
             return this.findByIdentifier(id, true);
         }
 
-        // Add community ID to params
         queryParams.push(id);
 
         const query = `

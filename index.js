@@ -10,6 +10,7 @@ const tagRoutes = require("./src/tag/routes/tag.routes");
 const communityRoutes = require("./src/community/routes/community.routes");
 
 const ApiError = require("./src/utils/ApiError");
+const schedulerService = require("./src/services/scheduler.service");
 require("dotenv").config();
 
 // Initialize express app
@@ -38,6 +39,12 @@ app.use("/api/accounts", accountRoutes);
 app.use("/api/images", imageRoutes);
 app.use("/api/tags", tagRoutes);
 app.use("/api/communities", communityRoutes);
+
+// Initialize scheduler service
+if (process.env.NODE_ENV !== "test") {
+    // Only initialize in non-test environments
+    schedulerService.initializeScheduler();
+}
 
 // Handle 404 routes
 app.use((req, res, next) => {
