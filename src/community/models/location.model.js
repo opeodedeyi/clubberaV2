@@ -50,6 +50,71 @@ class CommunityLocationModel {
         return result.rows[0] || null;
     }
 
+    async findByEntity(entityType, entityId, locationType = null) {
+        let query = `
+            SELECT * FROM locations
+            WHERE entity_type = $1 AND entity_id = $2
+        `;
+        const queryParams = [entityType, entityId];
+
+        if (locationType) {
+            query += ` AND location_type = $3`;
+            queryParams.push(locationType);
+        }
+
+        query += ` LIMIT 1`;
+
+        const result = await db.query(query, queryParams);
+        return result.rows[0] || null;
+    }
+
+    async findById(id) {
+        const query = {
+            text: "SELECT * FROM locations WHERE id = $1",
+            values: [id],
+        };
+
+        const result = await db.query(query.text, query.values);
+        return result.rows[0] || null;
+    }
+
+    async update(id, data) {
+        const allowedFields = [
+            "name",
+            "location_type",
+            "lat",
+            "lng",
+            "address",
+        ];
+
+        const setValues = [];
+        const queryParams = [];
+        let paramIndex = 1;
+
+        for (const [key, value] of Object.entries(data)) {
+            if (allowedFields.includes(key)) {
+                setValues.push(`${key} = $${paramIndex++}`);
+                queryParams.push(value);
+            }
+        }
+
+        if (setValues.length === 0) {
+            return this.findById(id);
+        }
+
+        queryParams.push(id);
+
+        const query = `
+            UPDATE locations
+            SET ${setValues.join(", ")}
+            WHERE id = $${paramIndex}
+            RETURNING *
+        `;
+
+        const result = await db.query(query, queryParams);
+        return result.rows[0] || null;
+    }
+
     async delete(communityId) {
         const query = `
             DELETE FROM locations

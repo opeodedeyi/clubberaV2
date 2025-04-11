@@ -20,6 +20,13 @@ router.post(
     communityController.createCommunity
 );
 
+// Get a community by ID or unique url
+router.get(
+    "/:identifier",
+    optionalAuth,
+    communityController.getCommunityDetails
+);
+
 // Deactivate a community (owner only)
 router.put(
     "/:id/deactivate",
@@ -49,6 +56,14 @@ router.post(
     verifyEmail,
     communityValidator.joinCommunity,
     communityController.joinCommunity
+);
+
+// Get community members (authenticated users only)
+router.get(
+    "/:id/members",
+    authenticate,
+    communityValidator.validateGetMembers,
+    communityController.getCommunityMembers
 );
 
 // Leave a community

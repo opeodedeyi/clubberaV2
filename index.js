@@ -1,3 +1,5 @@
+// index.js
+
 const express = require("express");
 var cors = require("cors");
 const helmet = require("helmet");
@@ -8,6 +10,10 @@ const accountRoutes = require("./src/user/routes/account.routes");
 const imageRoutes = require("./src/user/routes/image.routes");
 const tagRoutes = require("./src/tag/routes/tag.routes");
 const communityRoutes = require("./src/community/routes/community.routes");
+const communityUpdateRoutes = require("./src/community/routes/communityUpdate.routes");
+const communityAdminRoutes = require("./src/community/routes/communityAdmin.routes");
+const userCommunitiesRoutes = require("./src/community/routes/userCommunities.routes");
+const communitySearchRoutes = require("./src/community/routes/communitySearch.routes");
 
 const ApiError = require("./src/utils/ApiError");
 const schedulerService = require("./src/services/scheduler.service");
@@ -35,10 +41,14 @@ app.get("/", (req, res) => {
 
 // Routes
 app.use("/api/users", userRoutes);
+app.use("/api/users", userCommunitiesRoutes);
 app.use("/api/accounts", accountRoutes);
 app.use("/api/images", imageRoutes);
 app.use("/api/tags", tagRoutes);
 app.use("/api/communities", communityRoutes);
+app.use("/api/communities", communityUpdateRoutes);
+app.use("/api/communities", communitySearchRoutes);
+app.use("/api/community-admin", communityAdminRoutes);
 
 // Initialize scheduler service
 if (process.env.NODE_ENV !== "test") {

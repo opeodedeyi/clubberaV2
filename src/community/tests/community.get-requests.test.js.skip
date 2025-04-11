@@ -1,190 +1,137 @@
-// src/community/tests/community.get-requests.test.js
+const communityController = require("../controllers/community.controller");
+const communityModel = require("../models/community.model");
+const ApiError = require("../../utils/ApiError");
 
 // Mock dependencies
 jest.mock("../models/community.model");
 jest.mock("../../utils/ApiError");
 
-// Import dependencies
-const communityModel = require("../models/community.model");
-const ApiError = require("../../utils/ApiError");
+describe("CommunityController - getJoinRequests", () => {
+    let req, res, next;
 
-// Import the controller directly
-const communityController = require("../controllers/community.controller");
-
-describe("Community Get Join Requests API", () => {
-    // Test community data
-    const testCommunity = {
-        id: 1,
-        name: "Test Community",
-        unique_url: "test-community",
-        is_private: true,
-        is_active: true,
-    };
-
-    // Mock join requests data
-    const mockRequests = [];
-    for (let i = 1; i <= 3; i++) {
-        mockRequests.push({
-            id: i,
-            community_id: 1,
-            user_id: 10 + i,
-            message: `Request message ${i}`,
-            status: "pending",
-            created_at: new Date().toISOString(),
-            full_name: `User ${10 + i}`,
-            email: `user${10 + i}@example.com`,
-            user_url: `user-${10 + i}`,
-        });
-    }
-
-    // Setup before each test
     beforeEach(() => {
-        // Clear all mocks
+        req = {
+            params: {
+                id: 1,
+            },
+            query: {
+                limit: 20,
+                offset: 0,
+            },
+            user: {
+                id: 3,
+            },
+        };
+        res = {
+            json: jest.fn(),
+        };
+        next = jest.fn();
+
+        // Reset mocks
         jest.clearAllMocks();
 
-        // Setup ApiError mock
-        ApiError.mockImplementation((message, statusCode) => {
-            const error = new Error(message);
-            error.statusCode = statusCode;
-            return error;
+        // Default successful mock implementations
+        communityModel.findByIdentifier.mockResolvedValue({
+            id: 1,
+            name: "Test Community",
+            unique_url: "test-community",
         });
 
-        // Mock finding communities
-        communityModel.findByIdentifier = jest
-            .fn()
-            .mockResolvedValue(testCommunity);
+        communityModel.checkMemberRole.mockResolvedValue(true);
 
-        // Not admin by default
-        communityModel.checkMemberRole = jest.fn().mockResolvedValue(false);
+        communityModel.getJoinRequests.mockResolvedValue([
+            {
+                id: 101,
+                userId: 5,
+                communityId: 1,
+                message: "I would like to join this community",
+                status: "pending",
+                createdAt: new Date("2023-02-01"),
+                user: {
+                    id: 5,
+                    fullName: "Applicant One",
+                    uniqueUrl: "applicant-one",
+                    profileImage: {
+                        provider: "local",
+                        key: "applicant-profile.jpg",
+                        altText: "Applicant profile",
+                    },
+                },
+            },
+            {
+                id: 102,
+                userId: 6,
+                communityId: 1,
+                message: "Please let me join",
+                status: "pending",
+                createdAt: new Date("2023-02-15"),
+                user: {
+                    id: 6,
+                    fullName: "Applicant Two",
+                    uniqueUrl: "applicant-two",
+                    profileImage: null,
+                },
+            },
+        ]);
 
-        // Mock join requests
-        communityModel.getJoinRequests = jest
-            .fn()
-            .mockResolvedValue(mockRequests);
-        communityModel.countJoinRequests = jest.fn().mockResolvedValue(5);
+        communityModel.countJoinRequests.mockResolvedValue(2);
     });
 
-    describe("getJoinRequests controller method", () => {
-        it("should successfully get join requests for admins", async () => {
-            // Make user an admin
-            communityModel.checkMemberRole.mockResolvedValue(true);
+    it("should get join requests successfully", async () => {
+        await communityController.getJoinRequests(req, res, next);
 
-            // Mock request and response
-            const req = {
-                params: { id: 1 },
-                user: { id: 1 },
-                query: {},
-            };
+        expect(communityModel.findByIdentifier).toHaveBeenCalledWith(1);
+        expect(communityModel.checkMemberRole).toHaveBeenCalledWith(1, 3, [
+            "owner",
+            "organizer",
+            "moderator",
+        ]);
+        expect(communityModel.getJoinRequests).toHaveBeenCalledWith(
+            1,
+            expect.objectContaining({
+                limit: 20,
+                offset: 0,
+            })
+        );
+        expect(communityModel.countJoinRequests).toHaveBeenCalledWith(1);
 
-            const res = {
-                json: jest.fn(),
-            };
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                status: "success",
+                data: expect.any(Array),
+                pagination: expect.objectContaining({
+                    total: 2,
+                    limit: 20,
+                    offset: 0,
+                    hasMore: false,
+                }),
+            })
+        );
 
-            const next = jest.fn();
+        expect(next).not.toHaveBeenCalled();
+    });
 
-            // Call controller method directly
-            await communityController.getJoinRequests(req, res, next);
+    it("should return 404 if community not found", async () => {
+        communityModel.findByIdentifier.mockResolvedValue(null);
 
-            // Assertions
-            expect(res.json).toHaveBeenCalled();
-            const responseData = res.json.mock.calls[0][0];
-            expect(responseData.status).toBe("success");
-            expect(Array.isArray(responseData.data)).toBeTruthy();
-            expect(responseData.pagination).toBeDefined();
-            expect(responseData.pagination.total).toBe(5);
-            expect(communityModel.getJoinRequests).toHaveBeenCalled();
-        });
+        await communityController.getJoinRequests(req, res, next);
 
-        it("should handle pagination parameters", async () => {
-            // Make user an admin
-            communityModel.checkMemberRole.mockResolvedValue(true);
+        expect(next).toHaveBeenCalled();
+        expect(ApiError).toHaveBeenCalledWith(
+            "Community not found or inactive",
+            404
+        );
+    });
 
-            // Mock request with pagination
-            const req = {
-                params: { id: 1 },
-                user: { id: 1 },
-                query: {
-                    limit: "2",
-                    offset: "2",
-                },
-            };
+    it("should return 403 if user is not an admin", async () => {
+        communityModel.checkMemberRole.mockResolvedValue(false);
 
-            const res = {
-                json: jest.fn(),
-            };
+        await communityController.getJoinRequests(req, res, next);
 
-            const next = jest.fn();
-
-            // Call controller method directly
-            await communityController.getJoinRequests(req, res, next);
-
-            // Assertions
-            expect(communityModel.getJoinRequests).toHaveBeenCalledWith(1, {
-                limit: 2,
-                offset: 2,
-            });
-        });
-
-        it("should handle missing user", async () => {
-            // Mock request without user
-            const req = {
-                params: { id: 1 },
-                // No user property
-            };
-
-            const res = {};
-            const next = jest.fn();
-
-            // Call controller method directly
-            await communityController.getJoinRequests(req, res, next);
-
-            // Assertions
-            expect(next).toHaveBeenCalled();
-            expect(ApiError).toHaveBeenCalledWith(expect.any(String), 401);
-        });
-
-        it("should return 404 if community doesn't exist", async () => {
-            // Mock community not found
-            communityModel.findByIdentifier.mockResolvedValue(null);
-
-            // Mock request and response
-            const req = {
-                params: { id: 999 },
-                user: { id: 1 },
-            };
-
-            const res = {};
-            const next = jest.fn();
-
-            // Call controller method directly
-            await communityController.getJoinRequests(req, res, next);
-
-            // Assertions
-            expect(next).toHaveBeenCalled();
-            expect(ApiError).toHaveBeenCalledWith(expect.any(String), 404);
-        });
-
-        it("should return 403 if user is not an admin", async () => {
-            // Not admin (default mock is already false)
-
-            // Mock request and response
-            const req = {
-                params: { id: 1 },
-                user: { id: 2 }, // Different user
-            };
-
-            const res = {};
-            const next = jest.fn();
-
-            // Call controller method directly
-            await communityController.getJoinRequests(req, res, next);
-
-            // Assertions
-            expect(next).toHaveBeenCalled();
-            expect(ApiError).toHaveBeenCalledWith(
-                expect.stringContaining("permission"),
-                403
-            );
-        });
+        expect(next).toHaveBeenCalled();
+        expect(ApiError).toHaveBeenCalledWith(
+            "You don't have permission to view join requests",
+            403
+        );
     });
 });

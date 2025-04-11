@@ -120,7 +120,8 @@ CREATE TABLE communities (
     is_active BOOLEAN DEFAULT true,
     created_by INT REFERENCES users(id),
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    search_document tsvector
 );
 
 -- Community members table
@@ -248,4 +249,151 @@ VALUES
 CREATE INDEX idx_community_subscriptions_plan_id ON community_subscriptions(plan_id);
 CREATE INDEX idx_subscription_payments_subscription_id ON subscription_payments(subscription_id);
 CREATE INDEX idx_subscription_price_history_plan_id ON subscription_price_history(plan_id);
+
+
+-- Add tables for ownership transfer and audit logs
+-- Track ownership transfer requests
+CREATE TABLE community_ownership_transfers (
+    id SERIAL PRIMARY KEY,
+    community_id INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+    current_owner_id INTEGER NOT NULL REFERENCES users(id),
+    target_user_id INTEGER NOT NULL REFERENCES users(id),
+    status VARCHAR(50) NOT NULL CHECK (status IN ('pending', 'accepted', 'rejected', 'canceled', 'expired')),
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_pending_transfer UNIQUE (community_id) WHERE status = 'pending'
+);
+
+CREATE INDEX idx_ownership_transfers_community ON community_ownership_transfers(community_id);
+CREATE INDEX idx_ownership_transfers_status ON community_ownership_transfers(status);
+
+-- Track administrative actions for audit purposes
+CREATE TABLE community_audit_logs (
+    id SERIAL PRIMARY KEY,
+    community_id INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    action_type VARCHAR(50) NOT NULL,
+    previous_state JSONB,
+    new_state JSONB,
+    ip_address VARCHAR(50),
+    metadata JSONB,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_audit_logs_community ON community_audit_logs(community_id);
+CREATE INDEX idx_audit_logs_action_type ON community_audit_logs(action_type);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+------- search indexes for community
+-- Create indexes for search performance
+CREATE INDEX idx_communities_search ON communities USING GIN (search_document);
+
+-- Create a function to update the search document
+CREATE OR REPLACE FUNCTION update_community_search_document() RETURNS TRIGGER AS $$
+DECLARE
+    location_text TEXT;
+    tag_names TEXT;
+BEGIN
+    -- Get location data
+    SELECT COALESCE(l.name, '') || ' ' || COALESCE(l.address, '')
+    INTO location_text
+    FROM locations l
+    WHERE l.entity_type = 'community' AND l.entity_id = NEW.id
+    LIMIT 1;
+
+    -- Get tag names
+    SELECT string_agg(t.name, ' ')
+    INTO tag_names
+    FROM tags t
+    JOIN tag_assignments ta ON t.id = ta.tag_id
+    WHERE ta.entity_type = 'community' AND ta.entity_id = NEW.id;
+
+    -- Update the search document to include name, tagline, description, location, and tags
+    NEW.search_document :=
+        setweight(to_tsvector('english', COALESCE(NEW.name, '')), 'A') ||
+        setweight(to_tsvector('english', COALESCE(NEW.tagline, '')), 'B') ||
+        setweight(to_tsvector('english', COALESCE(NEW.description, '')), 'C') ||
+        setweight(to_tsvector('english', COALESCE(location_text, '')), 'C') ||
+        setweight(to_tsvector('english', COALESCE(tag_names, '')), 'B');
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create a trigger to automatically update the search document
+CREATE TRIGGER trigger_update_community_search_document
+BEFORE INSERT OR UPDATE ON communities
+FOR EACH ROW EXECUTE FUNCTION update_community_search_document();
+
+-- Create a function to update search document when tags change
+CREATE OR REPLACE FUNCTION update_community_search_document_on_tag_change() RETURNS TRIGGER AS $$
+BEGIN
+    -- If a tag was added or removed, update the community's search document
+    IF TG_OP = 'INSERT' OR TG_OP = 'DELETE' THEN
+        UPDATE communities
+        SET updated_at = CURRENT_TIMESTAMP
+        WHERE id =
+            CASE
+                WHEN TG_OP = 'INSERT' THEN NEW.entity_id
+                WHEN TG_OP = 'DELETE' THEN OLD.entity_id
+            END
+        AND NEW.entity_type = 'community' OR OLD.entity_type = 'community';
+    END IF;
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create trigger for tag changes
+CREATE TRIGGER trigger_update_community_search_on_tag_change
+AFTER INSERT OR DELETE ON tag_assignments
+FOR EACH ROW EXECUTE FUNCTION update_community_search_document_on_tag_change();
+
+-- Create a function to update search document when location changes
+CREATE OR REPLACE FUNCTION update_community_search_document_on_location_change() RETURNS TRIGGER AS $$
+BEGIN
+    -- If location was added, updated, or removed, update the community's search document
+    IF (TG_OP = 'INSERT' OR TG_OP = 'UPDATE' OR TG_OP = 'DELETE') AND
+       (NEW.entity_type = 'community' OR OLD.entity_type = 'community') THEN
+        UPDATE communities
+        SET updated_at = CURRENT_TIMESTAMP
+        WHERE id =
+            CASE
+                WHEN TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN NEW.entity_id
+                WHEN TG_OP = 'DELETE' THEN OLD.entity_id
+            END;
+    END IF;
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create trigger for location changes
+CREATE TRIGGER trigger_update_community_search_on_location_change
+AFTER INSERT OR UPDATE OR DELETE ON locations
+FOR EACH ROW EXECUTE FUNCTION update_community_search_document_on_location_change();
 ```

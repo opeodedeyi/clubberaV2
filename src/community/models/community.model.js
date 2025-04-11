@@ -1,3 +1,5 @@
+// src/community/models/community.model.js
+
 const db = require("../../config/db");
 
 class CommunityModel {
@@ -273,17 +275,80 @@ class CommunityModel {
     async getJoinRequests(communityId, options = {}) {
         const { limit = 50, offset = 0 } = options;
 
+        // First get the basic join request data with user info
         const query = `
-            SELECT jr.*, u.full_name, u.email, u.unique_url as user_url
-            FROM community_join_requests jr
-            JOIN users u ON jr.user_id = u.id
-            WHERE jr.community_id = $1 AND jr.status = 'pending'
-            ORDER BY jr.created_at ASC
-            LIMIT $2 OFFSET $3
-        `;
+        SELECT 
+            jr.id as request_id,
+            jr.user_id,
+            jr.community_id,
+            jr.message,
+            jr.status,
+            jr.created_at,
+            u.id as user_id,
+            u.full_name,
+            u.unique_url
+        FROM community_join_requests jr
+        JOIN users u ON jr.user_id = u.id
+        WHERE jr.community_id = $1 AND jr.status = 'pending'
+        ORDER BY jr.created_at ASC
+        LIMIT $2 OFFSET $3
+    `;
 
         const result = await db.query(query, [communityId, limit, offset]);
-        return result.rows;
+        const requests = result.rows;
+
+        // Get profile images for all requesters in a single query
+        if (requests.length > 0) {
+            const userIds = requests.map((request) => request.user_id);
+
+            const imagesQuery = `
+                SELECT 
+                    entity_id as user_id,
+                    provider,
+                    key, 
+                    alt_text
+                FROM images
+                WHERE entity_type = 'user' 
+                AND image_type = 'profile'
+                AND entity_id = ANY($1)
+            `;
+
+            const imagesResult = await db.query(imagesQuery, [userIds]);
+            const profileImages = imagesResult.rows;
+
+            // Create a map of user_id to profile image for quick lookup
+            const profileImageMap = {};
+            for (const image of profileImages) {
+                profileImageMap[image.user_id] = {
+                    provider: image.provider,
+                    key: image.key,
+                    altText: image.alt_text,
+                };
+            }
+
+            // Attach profile images to join requests
+            for (const request of requests) {
+                if (profileImageMap[request.user_id]) {
+                    request.profileImage = profileImageMap[request.user_id];
+                }
+            }
+        }
+
+        // Format the results to match the expected structure
+        return requests.map((request) => ({
+            id: request.request_id,
+            userId: request.user_id,
+            communityId: request.community_id,
+            message: request.message,
+            status: request.status,
+            createdAt: request.created_at,
+            user: {
+                id: request.user_id,
+                fullName: request.full_name,
+                uniqueUrl: request.unique_url,
+                profileImage: request.profileImage || null,
+            },
+        }));
     }
 
     async countJoinRequests(communityId) {
@@ -347,6 +412,129 @@ class CommunityModel {
 
         const result = await db.query(query, [communityId, userId, rolesArray]);
         return result.rows.length > 0;
+    }
+
+    async getMember(communityId, userId) {
+        const query = `
+            SELECT id, user_id, community_id, role, is_premium, joined_at
+            FROM community_members
+            WHERE community_id = $1 AND user_id = $2
+            LIMIT 1
+        `;
+
+        const result = await db.query(query, [communityId, userId]);
+        return result.rows[0] || null;
+    }
+
+    async getMembers(communityId, options = {}) {
+        const { limit = 20, offset = 0, role } = options;
+
+        let query = `
+            SELECT 
+                cm.id as membership_id,
+                cm.user_id,
+                cm.community_id,
+                cm.role,
+                cm.is_premium,
+                cm.joined_at,
+                u.id as user_id,
+                u.full_name,
+                u.unique_url
+            FROM community_members cm
+            JOIN users u ON cm.user_id = u.id
+            WHERE cm.community_id = $1
+        `;
+
+        const queryParams = [communityId];
+        let paramIndex = 2;
+
+        if (role) {
+            query += ` AND cm.role = $${paramIndex++}`;
+            queryParams.push(role);
+        }
+
+        query += ` ORDER BY 
+            CASE 
+                WHEN cm.role = 'owner' THEN 1
+                WHEN cm.role = 'organizer' THEN 2
+                WHEN cm.role = 'moderator' THEN 3
+                ELSE 4
+            END,
+            cm.joined_at ASC
+            LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+
+        queryParams.push(limit, offset);
+
+        const result = await db.query(query, queryParams);
+        const members = result.rows;
+
+        // Get profile images for all members in a single query
+        if (members.length > 0) {
+            const userIds = members.map((member) => member.user_id);
+
+            const imagesQuery = `
+                SELECT 
+                    entity_id as user_id,
+                    provider,
+                    key, 
+                    alt_text
+                FROM images
+                WHERE entity_type = 'user' 
+                AND image_type = 'profile'
+                AND entity_id = ANY($1)
+            `;
+
+            const imagesResult = await db.query(imagesQuery, [userIds]);
+            const profileImages = imagesResult.rows;
+
+            // Create a map of user_id to profile image for quick lookup
+            const profileImageMap = {};
+            for (const image of profileImages) {
+                profileImageMap[image.user_id] = {
+                    provider: image.provider,
+                    key: image.key,
+                    altText: image.alt_text,
+                };
+            }
+
+            // Attach profile images to members
+            for (const member of members) {
+                if (profileImageMap[member.user_id]) {
+                    member.profileImage = profileImageMap[member.user_id];
+                }
+            }
+        }
+
+        return members.map((member) => ({
+            id: member.user_id,
+            fullName: member.full_name,
+            uniqueUrl: member.unique_url,
+            membershipId: member.membership_id,
+            role: member.role,
+            isPremium: member.is_premium,
+            joinedAt: member.joined_at,
+            profileImage: member.profileImage || null,
+        }));
+    }
+
+    async countMembers(communityId, options = {}) {
+        const { role } = options;
+
+        let query = `
+            SELECT COUNT(*) 
+            FROM community_members
+            WHERE community_id = $1
+        `;
+
+        const queryParams = [communityId];
+
+        if (role) {
+            query += ` AND role = $2`;
+            queryParams.push(role);
+        }
+
+        const result = await db.query(query, queryParams);
+        return parseInt(result.rows[0].count);
     }
 }
 

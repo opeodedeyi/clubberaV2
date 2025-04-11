@@ -1,3 +1,5 @@
+// src/community/validators/community.validator.js
+
 const { body, param, validationResult } = require("express-validator");
 const ApiError = require("../../utils/ApiError");
 
@@ -98,5 +100,22 @@ exports.respondToJoinRequest = [
     body("status")
         .isIn(["approved", "rejected"])
         .withMessage("Status must be approved or rejected"),
+    validate,
+];
+
+exports.validateGetMembers = [
+    param("id").isInt().withMessage("Invalid community ID"),
+    query("limit")
+        .optional()
+        .isInt({ min: 1, max: 100 })
+        .withMessage("Limit must be between 1 and a100"),
+    query("offset")
+        .optional()
+        .isInt({ min: 0 })
+        .withMessage("Offset must be a positive number"),
+    query("role")
+        .optional()
+        .isIn(["owner", "organizer", "moderator", "member"])
+        .withMessage("Invalid role filter"),
     validate,
 ];

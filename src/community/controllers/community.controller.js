@@ -5,6 +5,7 @@ const locationModel = require("../models/location.model");
 const imageModel = require("../models/image.model");
 const tagModel = require("../models/tag.model");
 const subscriptionModel = require("../models/subscription.model");
+const restrictionModel = require("../models/restriction.model");
 const db = require("../../config/db");
 const ApiError = require("../../utils/ApiError");
 
@@ -400,9 +401,10 @@ class CommunityController {
                 return next(new ApiError("Authentication required", 401));
             }
 
-            const communityId = req.params.id;
+            const communityId = parseInt(req.params.id);
             const userId = req.user.id;
 
+            // Check if community exists
             const community = await communityModel.findByIdentifier(
                 communityId
             );
@@ -412,6 +414,7 @@ class CommunityController {
                 );
             }
 
+            // Check if user has permission to view join requests (owner, organizer, moderator)
             const isAdmin = await communityModel.checkMemberRole(
                 communityId,
                 userId,
@@ -421,14 +424,15 @@ class CommunityController {
             if (!isAdmin) {
                 return next(
                     new ApiError(
-                        "You do not have permission to view join requests",
+                        "You don't have permission to view join requests",
                         403
                     )
                 );
             }
 
+            // Get join requests with pagination
             const options = {
-                limit: parseInt(req.query.limit) || 50,
+                limit: parseInt(req.query.limit) || 20,
                 offset: parseInt(req.query.offset) || 0,
             };
 
@@ -523,6 +527,224 @@ class CommunityController {
                     data: updatedRequest,
                 });
             }
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async getCommunityMembers(req, res, next) {
+        try {
+            const communityId = parseInt(req.params.id);
+            const { limit = 20, offset = 0, role } = req.query;
+
+            // Check if community exists
+            const community = await communityModel.findByIdentifier(
+                communityId
+            );
+            if (!community) {
+                return next(
+                    new ApiError("Community not found or inactive", 404)
+                );
+            }
+
+            // Get members with pagination
+            const options = {
+                limit: parseInt(limit),
+                offset: parseInt(offset),
+                role: role, // Optional filter by role
+            };
+
+            const [members, total] = await Promise.all([
+                communityModel.getMembers(communityId, options),
+                communityModel.countMembers(communityId, { role }),
+            ]);
+
+            res.json({
+                status: "success",
+                data: members,
+                pagination: {
+                    total,
+                    limit: options.limit,
+                    offset: options.offset,
+                    hasMore: total > options.offset + options.limit,
+                },
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async getCommunityDetails(req, res, next) {
+        try {
+            const identifier = req.params.identifier;
+            const userId = req.user?.id; // Optional chaining for unauthenticated users
+
+            // Try to find community by ID or unique URL
+            let community;
+            if (!isNaN(identifier)) {
+                community = await communityModel.findByIdentifier(
+                    parseInt(identifier)
+                );
+            } else {
+                community = await communityModel.findByIdentifier(identifier);
+            }
+
+            if (!community) {
+                return next(
+                    new ApiError("Community not found or inactive", 404)
+                );
+            }
+
+            // Initialize response with all possible fields set to null
+            const response = {
+                id: community.id,
+                name: community.name,
+                uniqueUrl: community.unique_url,
+                tagline: community.tagline || null,
+                description: community.description || null,
+                guidelines: community.guidelines || null,
+                isPrivate: community.is_private,
+                isActive: community.is_active,
+                createdAt: community.created_at,
+                updatedAt: community.updated_at,
+                profileImage: null,
+                coverImage: null,
+                location: null,
+                tags: [],
+                memberCount: 0,
+                subscription: {
+                    plan: "free",
+                    status: "inactive",
+                    isPro: false,
+                },
+                user: null,
+            };
+
+            // Try to get profile image (handle if not exists)
+            try {
+                const profileImage = await imageModel.getProfileImage(
+                    community.id
+                );
+                if (profileImage) {
+                    response.profileImage = profileImage;
+                }
+            } catch (error) {
+                console.error("Error fetching profile image:", error);
+            }
+
+            // Try to get cover image (handle if not exists)
+            try {
+                const coverImage = await imageModel.getCoverImage(community.id);
+                if (coverImage) {
+                    response.coverImage = coverImage;
+                }
+            } catch (error) {
+                console.error("Error fetching cover image:", error);
+            }
+
+            // Try to get location (handle if not exists)
+            try {
+                const location = await locationModel.findByCommunity(
+                    community.id
+                );
+                if (location) {
+                    response.location = location;
+                }
+            } catch (error) {
+                console.error("Error fetching location:", error);
+            }
+
+            // Try to get tags (handle if not exists)
+            try {
+                const tags = await tagModel.getCommunityTags(community.id);
+                if (tags && tags.length > 0) {
+                    response.tags = tags;
+                }
+            } catch (error) {
+                console.error("Error fetching tags:", error);
+            }
+
+            // Try to get member count
+            try {
+                const memberCount = await communityModel.countMembers(
+                    community.id
+                );
+                if (memberCount !== null && memberCount !== undefined) {
+                    response.memberCount = memberCount;
+                }
+            } catch (error) {
+                console.error("Error fetching member count:", error);
+            }
+
+            // Try to get subscription details
+            try {
+                const subscription =
+                    await subscriptionModel.getByCommunitySummary(community.id);
+                if (subscription) {
+                    response.subscription = {
+                        plan: subscription.plan_code || "free",
+                        status: subscription.status || "inactive",
+                        isPro: subscription.plan_code !== "free",
+                    };
+                }
+            } catch (error) {
+                console.error("Error fetching subscription:", error);
+            }
+
+            // If user is authenticated, check relationship with community
+            if (userId) {
+                // Initialize user relationship
+                const userRelationship = {
+                    isMember: false,
+                    isAdmin: false,
+                    membershipDetails: null,
+                    activeRestrictions: null,
+                };
+
+                // Check if user is a member and get role
+                try {
+                    // We need to create this method in the community model
+                    const membership = await communityModel.getMember(
+                        community.id,
+                        userId
+                    );
+                    if (membership) {
+                        userRelationship.isMember = true;
+                        userRelationship.membershipDetails = membership;
+
+                        // Check if user is an admin (owner, organizer, or moderator)
+                        const adminRoles = ["owner", "organizer", "moderator"];
+                        userRelationship.isAdmin = adminRoles.includes(
+                            membership.role
+                        );
+                    }
+                } catch (error) {
+                    console.error("Error checking membership:", error);
+                }
+
+                // Check for any active restrictions
+                try {
+                    // Using your existing restriction model
+                    const activeRestrictions =
+                        await restrictionModel.getActiveRestrictions(
+                            community.id,
+                            userId
+                        );
+                    if (activeRestrictions && activeRestrictions.length > 0) {
+                        userRelationship.activeRestrictions =
+                            activeRestrictions;
+                    }
+                } catch (error) {
+                    console.error("Error checking restrictions:", error);
+                }
+
+                response.user = userRelationship;
+            }
+
+            res.json({
+                status: "success",
+                data: response,
+            });
         } catch (error) {
             next(error);
         }
