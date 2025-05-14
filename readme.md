@@ -286,10 +286,112 @@ CREATE INDEX idx_audit_logs_action_type ON community_audit_logs(action_type);
 
 
 
+-- Community Support Plans table
+CREATE TABLE community_support_plans (
+    id SERIAL PRIMARY KEY,
+    community_id INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    monthly_price DECIMAL(10, 2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'USD',
+    is_active BOOLEAN DEFAULT true,
+    benefits TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(community_id) -- Ensures one plan per community
+);
+
+-- User Community Support table (tracks active supports)
+CREATE TABLE user_community_supports (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    community_id INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+    plan_id INTEGER NOT NULL REFERENCES community_support_plans(id),
+    status VARCHAR(50) NOT NULL CHECK (status IN ('active', 'past_due', 'canceled', 'expired')),
+    starts_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    current_period_start TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    current_period_end TIMESTAMPTZ NOT NULL,
+    canceled_at TIMESTAMPTZ,
+    cancel_at_period_end BOOLEAN DEFAULT false,
+    provider VARCHAR(50), -- 'stripe', 'paypal', etc.
+    provider_subscription_id VARCHAR(255),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, community_id) -- One active support per user per community
+);
+
+-- Community Support Payments table
+CREATE TABLE community_support_payments (
+    id SERIAL PRIMARY KEY,
+    support_id INTEGER NOT NULL REFERENCES user_community_supports(id) ON DELETE CASCADE,
+    amount DECIMAL(10, 2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'USD',
+    payment_method VARCHAR(50), -- 'credit_card', 'paypal', etc.
+    payment_provider VARCHAR(50), -- 'stripe', 'paypal', etc.
+    provider_transaction_id VARCHAR(255),
+    status VARCHAR(50) NOT NULL, -- 'succeeded', 'failed', 'pending', etc.
+    billing_period_start TIMESTAMPTZ,
+    billing_period_end TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for better performance
+CREATE INDEX idx_community_support_plans_community_id ON community_support_plans(community_id);
+CREATE INDEX idx_user_community_supports_user_id ON user_community_supports(user_id);
+CREATE INDEX idx_user_community_supports_community_id ON user_community_supports(community_id);
+CREATE INDEX idx_community_support_payments_support_id ON community_support_payments(support_id);
 
 
+-- Posts table (base content type)
+CREATE TABLE posts (
+    id SERIAL PRIMARY KEY,
+    community_id INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    content TEXT,
+    is_supporters_only BOOLEAN DEFAULT false,
+    is_hidden BOOLEAN DEFAULT false,
+    content_type VARCHAR(50) NOT NULL CHECK (content_type IN ('post', 'event', 'poll')),
+    parent_id INTEGER REFERENCES posts(id) ON DELETE CASCADE, -- For replies
+    poll_data JSONB DEFAULT NULL, -- For polls
+    is_edited BOOLEAN DEFAULT false,
+    edited_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    search_document tsvector
+);
 
+-- Post reactions (likes)
+CREATE TABLE post_reactions (
+    id SERIAL PRIMARY KEY,
+    post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    reaction_type VARCHAR(50) NOT NULL DEFAULT 'like' CHECK (reaction_type IN ('like')),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(post_id, user_id, reaction_type)
+);
 
+-- Indexes
+CREATE INDEX idx_posts_community_id ON posts(community_id);
+CREATE INDEX idx_posts_user_id ON posts(user_id);
+CREATE INDEX idx_posts_parent_id ON posts(parent_id);
+CREATE INDEX idx_posts_content_type ON posts(content_type);
+CREATE INDEX idx_posts_search ON posts USING GIN (search_document);
+CREATE INDEX idx_post_reactions_post_id ON post_reactions(post_id);
+CREATE INDEX idx_post_reactions_user_id ON post_reactions(user_id);
+
+-- Create a function to update the search document
+CREATE OR REPLACE FUNCTION update_post_search_document() RETURNS TRIGGER AS $$
+BEGIN
+    -- Update the search document to include content
+    NEW.search_document := to_tsvector('english', COALESCE(NEW.content, ''));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create a trigger to automatically update the search document
+CREATE TRIGGER trigger_update_post_search_document
+BEFORE INSERT OR UPDATE ON posts
+FOR EACH ROW EXECUTE FUNCTION update_post_search_document();
 
 
 

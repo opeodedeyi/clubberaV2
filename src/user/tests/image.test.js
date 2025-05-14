@@ -23,7 +23,7 @@ app.use(express.json());
 
 // Import routes
 const imageRoutes = require("../routes/image.routes");
-app.use("/api/images", imageRoutes);
+app.use("/api/users", imageRoutes);
 
 // Test data
 const testUser = {
@@ -94,7 +94,7 @@ describe("Image Management Routes", () => {
         }));
     });
 
-    describe("POST /api/images/upload-url", () => {
+    describe("POST /api/users/images/upload-url", () => {
         test("should generate pre-signed URL when authenticated and valid data", async () => {
             const requestData = {
                 fileType: "image/jpeg",
@@ -102,7 +102,7 @@ describe("Image Management Routes", () => {
             };
 
             const response = await request(app)
-                .post("/api/images/upload-url")
+                .post("/api/users/images/upload-url")
                 .set("Authorization", "Bearer valid-token")
                 .send(requestData)
                 .expect("Content-Type", /json/)
@@ -126,7 +126,7 @@ describe("Image Management Routes", () => {
             };
 
             const response = await request(app)
-                .post("/api/images/upload-url")
+                .post("/api/users/images/upload-url")
                 .set("Authorization", "Bearer valid-token")
                 .send(invalidData)
                 .expect("Content-Type", /json/)
@@ -138,7 +138,7 @@ describe("Image Management Routes", () => {
 
         test("should return 401 when not authenticated", async () => {
             const response = await request(app)
-                .post("/api/images/upload-url")
+                .post("/api/users/images/upload-url")
                 .send({
                     fileType: "image/jpeg",
                     imageType: "profile",
@@ -151,7 +151,7 @@ describe("Image Management Routes", () => {
         });
     });
 
-    describe("POST /api/images/save", () => {
+    describe("POST /api/users/images/save", () => {
         test("should save image metadata when authenticated and valid data", async () => {
             const saveData = {
                 key: "user/1/profile-123456789.jpg",
@@ -160,7 +160,7 @@ describe("Image Management Routes", () => {
             };
 
             const response = await request(app)
-                .post("/api/images/save")
+                .post("/api/users/images/save")
                 .set("Authorization", "Bearer valid-token")
                 .send(saveData)
                 .expect("Content-Type", /json/)
@@ -191,7 +191,7 @@ describe("Image Management Routes", () => {
             };
 
             const response = await request(app)
-                .post("/api/images/save")
+                .post("/api/users/images/save")
                 .set("Authorization", "Bearer valid-token")
                 .send(invalidData)
                 .expect("Content-Type", /json/)
@@ -202,10 +202,10 @@ describe("Image Management Routes", () => {
         });
     });
 
-    describe("DELETE /api/images", () => {
+    describe("DELETE /api/users/images", () => {
         test("should delete image when authenticated", async () => {
             const response = await request(app)
-                .delete("/api/images?type=profile")
+                .delete("/api/users/images?type=profile")
                 .set("Authorization", "Bearer valid-token")
                 .expect("Content-Type", /json/)
                 .expect(200);
@@ -222,7 +222,7 @@ describe("Image Management Routes", () => {
             ImageModel.findByEntity.mockResolvedValueOnce(null);
 
             const response = await request(app)
-                .delete("/api/images?type=banner")
+                .delete("/api/users/images?type=banner")
                 .set("Authorization", "Bearer valid-token")
                 .expect("Content-Type", /json/)
                 .expect(404);
