@@ -394,10 +394,47 @@ BEFORE INSERT OR UPDATE ON posts
 FOR EACH ROW EXECUTE FUNCTION update_post_search_document();
 
 
+-- Events table (extends posts for event-specific data)
+CREATE TABLE events (
+    id SERIAL PRIMARY KEY,
+    post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    unique_url VARCHAR(255) NOT NULL UNIQUE,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    event_type VARCHAR(50) NOT NULL DEFAULT 'physical' CHECK (event_type IN ('physical', 'online')),
+    start_time TIMESTAMPTZ NOT NULL,
+    end_time TIMESTAMPTZ,
+    timezone VARCHAR(50) DEFAULT 'UTC',
+    location_details TEXT, -- For meeting instructions and details
+    max_attendees INTEGER,
+    current_attendees INTEGER DEFAULT 0, -- Maintained by model code
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(post_id)
+);
 
+-- Event attendees
+CREATE TABLE event_attendees (
+    id SERIAL PRIMARY KEY,
+    event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status VARCHAR(50) NOT NULL CHECK (status IN ('attending', 'not_attending', 'maybe', 'waitlisted')),
+    attended BOOLEAN DEFAULT NULL, -- Tracks if user actually attended the event
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(event_id, user_id)
+);
 
+CREATE INDEX idx_events_post_id ON events(post_id);
+CREATE INDEX idx_events_start_time ON events(start_time);
+CREATE INDEX idx_events_timezone ON events(timezone);
+CREATE INDEX idx_events_unique_url ON events(unique_url);
+CREATE INDEX idx_event_attendees_event_id ON event_attendees(event_id);
+CREATE INDEX idx_event_attendees_user_id ON event_attendees(user_id);
+CREATE INDEX idx_event_attendees_status ON event_attendees(status);
 
-
+CREATE INDEX idx_tag_assignments_events ON tag_assignments(entity_type, entity_id)
+  WHERE entity_type = 'event';
 
 
 

@@ -22,6 +22,10 @@ const postRoutes = require("./src/post/routes/post.routes");
 const postReactionRoutes = require("./src/post/routes/postReaction.routes");
 const replyRoutes = require("./src/post/routes/reply.routes");
 const pollRoutes = require("./src/post/routes/poll.routes");
+const eventRoutes = require("./src/event/routes/event.routes");
+const attendanceRoutes = require("./src/event/routes/attendance.routes");
+const eventImageRoutes = require("./src/event/routes/image.routes");
+const eventSearchRoutes = require("./src/event/routes/eventSearch.routes");
 
 const ApiError = require("./src/utils/ApiError");
 const schedulerService = require("./src/services/scheduler.service");
@@ -65,6 +69,10 @@ app.use("/api/posts", postRoutes);
 app.use("/api/posts", postReactionRoutes);
 app.use("/api/posts", replyRoutes);
 app.use("/api/posts", pollRoutes);
+app.use("/api/events", eventRoutes);
+app.use("/api/events", attendanceRoutes);
+app.use("/api/events", eventImageRoutes);
+app.use("/api/events", eventSearchRoutes);
 
 // Initialize scheduler service
 if (process.env.NODE_ENV !== "test") {
