@@ -1,3 +1,4 @@
+// src/user/validators/image.validator.js
 const { body } = require("express-validator");
 
 const validateGetUploadUrl = [

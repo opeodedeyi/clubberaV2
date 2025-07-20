@@ -1,3 +1,4 @@
+// src/user/validators/account.validator.js
 const { body } = require("express-validator");
 
 const validateReactivation = [

@@ -1,3 +1,5 @@
+// src/user/routes/images.routes.js
+
 const router = require("express").Router();
 const controller = require("../controllers/image.controller");
 const validator = require("../validators/image.validator");

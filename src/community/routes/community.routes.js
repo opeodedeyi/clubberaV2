@@ -8,6 +8,7 @@ const communityValidator = require("../validators/community.validator");
 const subscriptionValidator = require("../validators/subscription.validator");
 const restrictionRoutes = require("./restriction.routes");
 const { authenticate } = require("../../middleware/auth");
+const { optionalAuth } = require("../../middleware/optionalAuth");
 const { verifyEmail } = require("../../middleware/verifyEmail");
 const { requireRole } = require("../../middleware/role");
 
@@ -19,6 +20,9 @@ router.post(
     communityValidator.createCommunity,
     communityController.createCommunity
 );
+
+// Get available subscription plans
+router.get("/subscription-plans", subscriptionController.getSubscriptionPlans);
 
 // Get a community by ID or unique url
 router.get(
@@ -97,9 +101,6 @@ router.get(
     authenticate,
     subscriptionController.getCommunitySubscription
 );
-
-// Get available subscription plans
-router.get("/subscription-plans", subscriptionController.getSubscriptionPlans);
 
 // Upgrade to Pro plan
 router.post(

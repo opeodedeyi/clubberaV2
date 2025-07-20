@@ -1,3 +1,5 @@
+// src/user/models/user.model.js
+
 const db = require("../../config/db");
 
 class UserModel {
@@ -49,6 +51,16 @@ class UserModel {
                 JSON.stringify(preferences),
             ],
         };
+    }
+
+    static async findByUniqueUrl(uniqueUrl) {
+        const query = {
+            text: "SELECT * FROM users WHERE unique_url = $1",
+            values: [uniqueUrl],
+        };
+
+        const result = await db.query(query.text, query.values);
+        return result.rows[0] || null;
     }
 
     static async findByEmail(email) {

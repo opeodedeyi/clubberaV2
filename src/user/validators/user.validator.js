@@ -1,3 +1,5 @@
+// src/user/validators/user.validator.js
+
 const { body, query } = require("express-validator");
 
 const validateUserCreation = [

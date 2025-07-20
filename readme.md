@@ -17,7 +17,7 @@ CREATE TABLE users (
     preferences JSONB DEFAULT '{}'::jsonb,
     is_email_confirmed BOOLEAN DEFAULT false,
     is_active BOOLEAN DEFAULT true,
-    role VARCHAR(50) DEFAULT 'user'; -- e.g., "superuser", "staff", "user"
+    role VARCHAR(50) DEFAULT 'user', -- e.g., "superuser", "staff", "user"
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
@@ -80,10 +80,13 @@ CREATE TABLE images (
     provider VARCHAR(255) NOT NULL,
     key VARCHAR(255) NOT NULL,
     alt_text VARCHAR(255),
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT unique_profile_images UNIQUE (entity_type, entity_id, image_type)
-    WHERE (entity_type IN ('user', 'community'))
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Create the partial unique index separately
+CREATE UNIQUE INDEX unique_profile_images
+ON images (entity_type, entity_id, image_type)
+WHERE entity_type IN ('user', 'community');
 ```
 
 ### Tags
@@ -130,7 +133,7 @@ CREATE TABLE community_members (
     user_id INT REFERENCES users(id) ON DELETE CASCADE,
     community_id INT REFERENCES communities(id) ON DELETE CASCADE,
     role VARCHAR(50) CHECK (role IN ('owner', 'organizer', 'moderator', 'member')) DEFAULT 'member',
-    is_premium BOOLEAN DEFAULT false;
+    is_premium BOOLEAN DEFAULT false,
     joined_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, community_id)
 );
@@ -144,9 +147,13 @@ CREATE TABLE community_restrictions (
     reason TEXT,
     applied_by INT REFERENCES users(id),
     expires_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(community_id, user_id, type) WHERE expires_at IS NULL OR expires_at > NOW()
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Create the partial unique index separately
+CREATE UNIQUE INDEX idx_community_restrictions_active_unique
+ON community_restrictions (community_id, user_id, type)
+WHERE expires_at IS NULL;
 
 -- Join requests for private communities
 CREATE TABLE community_join_requests (
@@ -157,11 +164,15 @@ CREATE TABLE community_join_requests (
     status VARCHAR(50) CHECK (status IN ('pending', 'approved', 'rejected')) DEFAULT 'pending',
     responded_by INT REFERENCES users(id),
     responded_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(community_id, user_id, status) WHERE status = 'pending'
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
--- Indexes for better performance
+-- Then create the partial unique index separately
+CREATE UNIQUE INDEX idx_unique_pending_join_requests
+ON community_join_requests(community_id, user_id)
+WHERE status = 'pending';
+
+-- Indexes for better performance {may be an error as it says index already exist}
 CREATE INDEX idx_community_members_community_id ON community_members(community_id);
 CREATE INDEX idx_community_members_user_id ON community_members(user_id);
 CREATE INDEX idx_communities_created_by ON communities(created_by);
@@ -261,9 +272,13 @@ CREATE TABLE community_ownership_transfers (
     status VARCHAR(50) NOT NULL CHECK (status IN ('pending', 'accepted', 'rejected', 'canceled', 'expired')),
     expires_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT unique_pending_transfer UNIQUE (community_id) WHERE status = 'pending'
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Then create the partial unique index separately
+CREATE UNIQUE INDEX idx_unique_pending_transfer
+ON community_ownership_transfers(community_id)
+WHERE status = 'pending';
 
 CREATE INDEX idx_ownership_transfers_community ON community_ownership_transfers(community_id);
 CREATE INDEX idx_ownership_transfers_status ON community_ownership_transfers(status);
@@ -433,18 +448,7 @@ CREATE INDEX idx_event_attendees_event_id ON event_attendees(event_id);
 CREATE INDEX idx_event_attendees_user_id ON event_attendees(user_id);
 CREATE INDEX idx_event_attendees_status ON event_attendees(status);
 
-CREATE INDEX idx_tag_assignments_events ON tag_assignments(entity_type, entity_id)
-  WHERE entity_type = 'event';
-
-
-
-
-
-
-
-
-
-
+CREATE INDEX idx_tag_assignments_events ON tag_assignments(entity_type, entity_id) WHERE entity_type = 'event';
 
 
 ------- search indexes for community

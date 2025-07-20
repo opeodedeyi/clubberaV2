@@ -78,6 +78,13 @@ class EventController {
     async getEvent(req, res, next) {
         try {
             const { eventId } = req.params;
+            // const userId = req.user.id;
+
+            // // Check if user can manage this event
+            // const canManage = await EventModel.canManageEvent(
+            //     parseInt(eventId),
+            //     userId
+            // );
 
             const event = await EventModel.getEventById(parseInt(eventId));
 
@@ -85,6 +92,7 @@ class EventController {
                 status: "success",
                 data: {
                     event,
+                    // canManage
                 },
             });
         } catch (error) {
