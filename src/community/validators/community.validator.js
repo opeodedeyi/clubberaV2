@@ -1,6 +1,6 @@
 // src/community/validators/community.validator.js
 
-const { body, param, validationResult } = require("express-validator");
+const { body, param, query, validationResult } = require("express-validator");
 const ApiError = require("../../utils/ApiError");
 
 // Helper function to validate request

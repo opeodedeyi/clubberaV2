@@ -1,3 +1,5 @@
+// src/user/models/image.model.js
+
 const db = require("../../config/db");
 const s3Service = require("../../services/s3.service");
 

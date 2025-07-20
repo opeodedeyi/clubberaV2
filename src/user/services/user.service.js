@@ -1,3 +1,6 @@
+// src/user/services/user.service.js
+
+const UrlGenerator = require("../utils/UrlGenerator");
 const UserModel = require("../models/user.model");
 const LocationModel = require("../models/location.model");
 const ImageModel = require("../models/image.model");
@@ -16,12 +19,17 @@ class UserService {
                 userData.password
             );
 
+            const uniqueUrl = await UrlGenerator.generateUniqueUserUrl(
+                userData.fullName
+            );
+
             const operations = [];
 
             operations.push(
                 UserModel.createUserOperation({
                     ...userData,
                     passwordHash,
+                    uniqueUrl,
                 })
             );
 
@@ -57,7 +65,13 @@ class UserService {
                 console.error("Failed to send welcome email:", emailErr);
             }
 
-            return this.getUserFullProfile(user.id);
+            const authToken = await AuthService.generateAuthToken(user.id);
+            const userProfile = await this.getUserFullProfile(user.id);
+
+            return {
+                user: userProfile,
+                token: authToken.token,
+            };
         } catch (error) {
             if (
                 error.code === "23505" &&
@@ -107,6 +121,10 @@ class UserService {
             fullName: user.full_name,
             uniqueUrl: user.unique_url,
             isEmailConfirmed: user.is_email_confirmed,
+            role: user.role || "user",
+            isActive: user.is_active,
+            createdAt: user.created_at,
+            updatedAt: user.updated_at,
             createdAt: user.created_at,
         };
 
@@ -117,14 +135,118 @@ class UserService {
             profile.preferences = user.preferences;
         }
 
-        if (location) profile.location = location;
-        if (profileImage) profile.profileImage = profileImage;
-        if (bannerImage) profile.bannerImage = bannerImage;
+        if (location) {
+            profile.location = {
+                city: location.name,
+                lat: location.lat,
+                lng: location.lng,
+                address: location.address,
+            };
+        } else {
+            profile.location = null;
+        }
 
-        if (userTags.interest) profile.interests = userTags.interest;
-        if (userTags.skill) profile.skills = userTags.skill;
+        if (profileImage) {
+            profile.profileImage = {
+                id: profileImage.id,
+                key: profileImage.key,
+                altText: profileImage.alt_text,
+                provider: profileImage.provider,
+                // Add URL if you have S3 base URL configured
+                url:
+                    profileImage.provider === "aws-s3" &&
+                    process.env.S3_BASE_URL
+                        ? `${process.env.S3_BASE_URL}/${profileImage.key}`
+                        : profileImage.key,
+            };
+        } else {
+            profile.profileImage = null;
+        }
+
+        if (bannerImage) {
+            profile.bannerImage = {
+                id: bannerImage.id,
+                key: bannerImage.key,
+                altText: bannerImage.alt_text,
+                provider: bannerImage.provider,
+                url:
+                    bannerImage.provider === "aws-s3" && process.env.S3_BASE_URL
+                        ? `${process.env.S3_BASE_URL}/${bannerImage.key}`
+                        : bannerImage.key,
+            };
+        } else {
+            profile.bannerImage = null;
+        }
+
+        if (userTags.interest) {
+            profile.interests = userTags.interest.map(
+                (interest) => interest.name
+            );
+        } else {
+            profile.interests = [];
+        }
+
+        if (userTags.skill) {
+            profile.skills = userTags.skill.map((skill) => skill.name);
+        } else {
+            profile.skills = [];
+        }
 
         return profile;
+    }
+
+    static formatProfileWithOwnership(
+        profile,
+        isOwner = false,
+        viewerId = null
+    ) {
+        const baseProfile = {
+            id: profile.id,
+            fullName: profile.fullName,
+            uniqueUrl: profile.uniqueUrl,
+            bio: profile.bio || null,
+            gender: profile.gender || null, // Include gender
+            profileImage: profile.profileImage,
+            bannerImage: profile.bannerImage,
+            location: profile.location,
+            interests: profile.interests || [],
+            skills: profile.skills || [],
+            dateJoined: profile.createdAt, // Add date joined
+            isOwner: isOwner, // Whether the viewer owns this profile
+            isLoggedIn: !!viewerId, // Whether someone is logged in viewing this
+        };
+
+        // If the viewer owns the profile, include private information
+        if (isOwner) {
+            baseProfile.email = profile.email;
+            baseProfile.isEmailConfirmed = profile.isEmailConfirmed;
+            baseProfile.preferences = profile.preferences;
+            baseProfile.birthday = profile.birthday; // Include birthday for owner
+            baseProfile.role = profile.role;
+            baseProfile.isActive = profile.isActive;
+        }
+
+        return baseProfile;
+    }
+
+    static async getUserProfileByUrl(uniqueUrl, viewerId = null) {
+        const user = await UserModel.findByUniqueUrl(uniqueUrl);
+
+        console.log("Found user:", user); // Debug log
+
+        if (!user) {
+            throw new ApiError("User not found", 404);
+        }
+
+        console.log("User is_active status:", user.is_active); // Debug log
+
+        if (!user.is_active) {
+            throw new ApiError("User profile not available", 404);
+        }
+
+        const fullProfile = await this.getUserFullProfile(user.id);
+        const isOwner = viewerId && viewerId === user.id;
+        return this.formatProfileWithOwnership(fullProfile, isOwner, viewerId);
     }
 
     static async getUserWithProfile(userId) {

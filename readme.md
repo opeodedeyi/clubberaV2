@@ -17,7 +17,7 @@ CREATE TABLE users (
     preferences JSONB DEFAULT '{}'::jsonb,
     is_email_confirmed BOOLEAN DEFAULT false,
     is_active BOOLEAN DEFAULT true,
-    role VARCHAR(50) DEFAULT 'user'; -- e.g., "superuser", "staff", "user"
+    role VARCHAR(50) DEFAULT 'user', -- e.g., "superuser", "staff", "user"
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
@@ -80,10 +80,13 @@ CREATE TABLE images (
     provider VARCHAR(255) NOT NULL,
     key VARCHAR(255) NOT NULL,
     alt_text VARCHAR(255),
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT unique_profile_images UNIQUE (entity_type, entity_id, image_type)
-    WHERE (entity_type IN ('user', 'community'))
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Create the partial unique index separately
+CREATE UNIQUE INDEX unique_profile_images
+ON images (entity_type, entity_id, image_type)
+WHERE entity_type IN ('user', 'community');
 ```
 
 ### Tags
@@ -130,7 +133,7 @@ CREATE TABLE community_members (
     user_id INT REFERENCES users(id) ON DELETE CASCADE,
     community_id INT REFERENCES communities(id) ON DELETE CASCADE,
     role VARCHAR(50) CHECK (role IN ('owner', 'organizer', 'moderator', 'member')) DEFAULT 'member',
-    is_premium BOOLEAN DEFAULT false;
+    is_premium BOOLEAN DEFAULT false,
     joined_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, community_id)
 );
@@ -144,9 +147,13 @@ CREATE TABLE community_restrictions (
     reason TEXT,
     applied_by INT REFERENCES users(id),
     expires_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(community_id, user_id, type) WHERE expires_at IS NULL OR expires_at > NOW()
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Create the partial unique index separately
+CREATE UNIQUE INDEX idx_community_restrictions_active_unique
+ON community_restrictions (community_id, user_id, type)
+WHERE expires_at IS NULL;
 
 -- Join requests for private communities
 CREATE TABLE community_join_requests (
@@ -157,11 +164,15 @@ CREATE TABLE community_join_requests (
     status VARCHAR(50) CHECK (status IN ('pending', 'approved', 'rejected')) DEFAULT 'pending',
     responded_by INT REFERENCES users(id),
     responded_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(community_id, user_id, status) WHERE status = 'pending'
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
--- Indexes for better performance
+-- Then create the partial unique index separately
+CREATE UNIQUE INDEX idx_unique_pending_join_requests
+ON community_join_requests(community_id, user_id)
+WHERE status = 'pending';
+
+-- Indexes for better performance {may be an error as it says index already exist}
 CREATE INDEX idx_community_members_community_id ON community_members(community_id);
 CREATE INDEX idx_community_members_user_id ON community_members(user_id);
 CREATE INDEX idx_communities_created_by ON communities(created_by);
@@ -261,9 +272,13 @@ CREATE TABLE community_ownership_transfers (
     status VARCHAR(50) NOT NULL CHECK (status IN ('pending', 'accepted', 'rejected', 'canceled', 'expired')),
     expires_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT unique_pending_transfer UNIQUE (community_id) WHERE status = 'pending'
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Then create the partial unique index separately
+CREATE UNIQUE INDEX idx_unique_pending_transfer
+ON community_ownership_transfers(community_id)
+WHERE status = 'pending';
 
 CREATE INDEX idx_ownership_transfers_community ON community_ownership_transfers(community_id);
 CREATE INDEX idx_ownership_transfers_status ON community_ownership_transfers(status);
@@ -286,26 +301,154 @@ CREATE INDEX idx_audit_logs_action_type ON community_audit_logs(action_type);
 
 
 
+-- Community Support Plans table
+CREATE TABLE community_support_plans (
+    id SERIAL PRIMARY KEY,
+    community_id INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    monthly_price DECIMAL(10, 2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'USD',
+    is_active BOOLEAN DEFAULT true,
+    benefits TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(community_id) -- Ensures one plan per community
+);
+
+-- User Community Support table (tracks active supports)
+CREATE TABLE user_community_supports (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    community_id INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+    plan_id INTEGER NOT NULL REFERENCES community_support_plans(id),
+    status VARCHAR(50) NOT NULL CHECK (status IN ('active', 'past_due', 'canceled', 'expired')),
+    starts_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    current_period_start TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    current_period_end TIMESTAMPTZ NOT NULL,
+    canceled_at TIMESTAMPTZ,
+    cancel_at_period_end BOOLEAN DEFAULT false,
+    provider VARCHAR(50), -- 'stripe', 'paypal', etc.
+    provider_subscription_id VARCHAR(255),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, community_id) -- One active support per user per community
+);
+
+-- Community Support Payments table
+CREATE TABLE community_support_payments (
+    id SERIAL PRIMARY KEY,
+    support_id INTEGER NOT NULL REFERENCES user_community_supports(id) ON DELETE CASCADE,
+    amount DECIMAL(10, 2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'USD',
+    payment_method VARCHAR(50), -- 'credit_card', 'paypal', etc.
+    payment_provider VARCHAR(50), -- 'stripe', 'paypal', etc.
+    provider_transaction_id VARCHAR(255),
+    status VARCHAR(50) NOT NULL, -- 'succeeded', 'failed', 'pending', etc.
+    billing_period_start TIMESTAMPTZ,
+    billing_period_end TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for better performance
+CREATE INDEX idx_community_support_plans_community_id ON community_support_plans(community_id);
+CREATE INDEX idx_user_community_supports_user_id ON user_community_supports(user_id);
+CREATE INDEX idx_user_community_supports_community_id ON user_community_supports(community_id);
+CREATE INDEX idx_community_support_payments_support_id ON community_support_payments(support_id);
 
 
+-- Posts table (base content type)
+CREATE TABLE posts (
+    id SERIAL PRIMARY KEY,
+    community_id INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    content TEXT,
+    is_supporters_only BOOLEAN DEFAULT false,
+    is_hidden BOOLEAN DEFAULT false,
+    content_type VARCHAR(50) NOT NULL CHECK (content_type IN ('post', 'event', 'poll')),
+    parent_id INTEGER REFERENCES posts(id) ON DELETE CASCADE, -- For replies
+    poll_data JSONB DEFAULT NULL, -- For polls
+    is_edited BOOLEAN DEFAULT false,
+    edited_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    search_document tsvector
+);
+
+-- Post reactions (likes)
+CREATE TABLE post_reactions (
+    id SERIAL PRIMARY KEY,
+    post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    reaction_type VARCHAR(50) NOT NULL DEFAULT 'like' CHECK (reaction_type IN ('like')),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(post_id, user_id, reaction_type)
+);
+
+-- Indexes
+CREATE INDEX idx_posts_community_id ON posts(community_id);
+CREATE INDEX idx_posts_user_id ON posts(user_id);
+CREATE INDEX idx_posts_parent_id ON posts(parent_id);
+CREATE INDEX idx_posts_content_type ON posts(content_type);
+CREATE INDEX idx_posts_search ON posts USING GIN (search_document);
+CREATE INDEX idx_post_reactions_post_id ON post_reactions(post_id);
+CREATE INDEX idx_post_reactions_user_id ON post_reactions(user_id);
+
+-- Create a function to update the search document
+CREATE OR REPLACE FUNCTION update_post_search_document() RETURNS TRIGGER AS $$
+BEGIN
+    -- Update the search document to include content
+    NEW.search_document := to_tsvector('english', COALESCE(NEW.content, ''));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create a trigger to automatically update the search document
+CREATE TRIGGER trigger_update_post_search_document
+BEFORE INSERT OR UPDATE ON posts
+FOR EACH ROW EXECUTE FUNCTION update_post_search_document();
 
 
+-- Events table (extends posts for event-specific data)
+CREATE TABLE events (
+    id SERIAL PRIMARY KEY,
+    post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    unique_url VARCHAR(255) NOT NULL UNIQUE,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    event_type VARCHAR(50) NOT NULL DEFAULT 'physical' CHECK (event_type IN ('physical', 'online')),
+    start_time TIMESTAMPTZ NOT NULL,
+    end_time TIMESTAMPTZ,
+    timezone VARCHAR(50) DEFAULT 'UTC',
+    location_details TEXT, -- For meeting instructions and details
+    max_attendees INTEGER,
+    current_attendees INTEGER DEFAULT 0, -- Maintained by model code
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(post_id)
+);
 
+-- Event attendees
+CREATE TABLE event_attendees (
+    id SERIAL PRIMARY KEY,
+    event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status VARCHAR(50) NOT NULL CHECK (status IN ('attending', 'not_attending', 'maybe', 'waitlisted')),
+    attended BOOLEAN DEFAULT NULL, -- Tracks if user actually attended the event
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(event_id, user_id)
+);
 
+CREATE INDEX idx_events_post_id ON events(post_id);
+CREATE INDEX idx_events_start_time ON events(start_time);
+CREATE INDEX idx_events_timezone ON events(timezone);
+CREATE INDEX idx_events_unique_url ON events(unique_url);
+CREATE INDEX idx_event_attendees_event_id ON event_attendees(event_id);
+CREATE INDEX idx_event_attendees_user_id ON event_attendees(user_id);
+CREATE INDEX idx_event_attendees_status ON event_attendees(status);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+CREATE INDEX idx_tag_assignments_events ON tag_assignments(entity_type, entity_id) WHERE entity_type = 'event';
 
 
 ------- search indexes for community

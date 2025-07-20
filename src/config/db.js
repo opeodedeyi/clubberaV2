@@ -41,4 +41,5 @@ const executeTransaction = async (operations) => {
 module.exports = {
     query: (text, params) => pool.query(text, params),
     executeTransaction,
+    pool,
 };

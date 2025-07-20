@@ -1,11 +1,20 @@
+// src/user/routes/user.routes.js
+
 const router = require("express").Router();
 const controller = require("../controllers/user.controller");
 const validator = require("../validators/user.validator");
 const authMiddleware = require("../../middleware/auth");
+const optionalAuth = require("../../middleware/optionalAuth");
 
 // Public routes
 router.post("/create-user", validator.validateSignup, controller.createUser);
 router.post("/login", validator.validateLogin, controller.loginUser);
+
+router.get("/profile/:uniqueUrl", optionalAuth, controller.getUserProfileByUrl);
+
+// Protected routes (require authentication)
+router.get("/profile", authMiddleware.authenticate, controller.getUserProfile);
+
 router.post("/logout", validator.validateLogout, controller.logout);
 
 // Password management routes
@@ -61,9 +70,6 @@ router.post(
     validator.validateGoogleLogin,
     controller.googleLogin
 );
-
-// Protected routes (require authentication)
-router.get("/profile", authMiddleware.authenticate, controller.getUserProfile);
 
 // Update routes (all require authentication)
 router.put(

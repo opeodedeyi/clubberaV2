@@ -1,3 +1,5 @@
+// src/user/controllers/user.controller.js
+
 const { validationResult } = require("express-validator");
 const jwt = require("jsonwebtoken");
 const UserService = require("../services/user.service");
@@ -93,6 +95,31 @@ class UserController {
             const userId = req.user.id;
 
             const userProfile = await UserService.getUserFullProfile(userId);
+
+            return res.status(200).json({
+                status: "success",
+                data: userProfile,
+            });
+        } catch (error) {
+            if (error instanceof ApiError) {
+                return res.status(error.statusCode).json({
+                    status: "error",
+                    message: error.message,
+                });
+            }
+            next(error);
+        }
+    }
+
+    static async getUserProfileByUrl(req, res, next) {
+        try {
+            const { uniqueUrl } = req.params;
+            const viewerId = req.user?.id;
+
+            const userProfile = await UserService.getUserProfileByUrl(
+                uniqueUrl,
+                viewerId
+            );
 
             return res.status(200).json({
                 status: "success",

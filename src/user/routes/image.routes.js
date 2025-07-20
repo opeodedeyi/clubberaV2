@@ -1,3 +1,5 @@
+// src/user/routes/images.routes.js
+
 const router = require("express").Router();
 const controller = require("../controllers/image.controller");
 const validator = require("../validators/image.validator");
@@ -8,15 +10,19 @@ router.use(authMiddleware.authenticate);
 
 // Get pre-signed URL for direct S3 upload
 router.post(
-    "/upload-url",
+    "/images/upload-url",
     validator.validateGetUploadUrl,
     controller.getUploadUrl
 );
 
 // Save image metadata after successful upload
-router.post("/save", validator.validateSaveImage, controller.saveProfileImage);
+router.post(
+    "/images/save",
+    validator.validateSaveImage,
+    controller.saveProfileImage
+);
 
 // Delete profile image
-router.delete("/", controller.deleteProfileImage);
+router.delete("/images", controller.deleteProfileImage);
 
 module.exports = router;

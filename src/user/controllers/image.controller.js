@@ -1,3 +1,5 @@
+// src/user/controllers/image.controller.js
+
 const { validationResult } = require("express-validator");
 const ImageModel = require("../models/image.model");
 const s3Service = require("../../services/s3.service");

@@ -1,4 +1,7 @@
+// src/user/services/auth.service.js
+
 const bcrypt = require("bcrypt");
+const UrlGenerator = require("../utils/UrlGenerator");
 const UserModel = require("../models/user.model");
 const ImageModel = require("../models/image.model");
 const db = require("../../config/db");
@@ -73,10 +76,9 @@ class AuthService {
             let user = await UserModel.findByEmail(googleUser.email);
 
             if (!user) {
-                const uniqueUrl =
-                    googleUser.name.replace(/\s+/g, "-").toLowerCase() +
-                    "-" +
-                    Date.now();
+                const uniqueUrl = await UrlGenerator.generateUniqueUserUrl(
+                    googleUser.name
+                );
                 const randomPassword = Math.random().toString(36).slice(-16);
 
                 const userData = {

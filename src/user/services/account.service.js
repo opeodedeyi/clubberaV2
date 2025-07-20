@@ -1,3 +1,5 @@
+// src/user/services/account.service.js
+
 const UserModel = require("../models/user.model");
 const db = require("../../config/db");
 const ApiError = require("../../utils/ApiError");
