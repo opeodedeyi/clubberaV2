@@ -14,7 +14,7 @@ const pool = new Pool({
     database: DB_DATABASE,
     password: DB_PASSWORD,
     port: DB_PORT,
-    ssl: NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+    ssl: NODE_ENV === "production" ? { rejectUnauthorized: true } : false,
 });
 
 const executeTransaction = async (operations) => {
