@@ -50,7 +50,7 @@ app.use(morgan("dev")); // Request logging
 app.get("/", (req, res) => {
     res.json({
         status: "success",
-        message: "API is running",
+        message: "API is running, thank you",
         version: "1.0.0",
     });
 });
