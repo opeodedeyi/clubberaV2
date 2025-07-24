@@ -1,7 +1,7 @@
 // src/user/services/auth.service.js
 
 const bcrypt = require("bcrypt");
-const UrlGenerator = require("../utils/UrlGenerator");
+const UrlGenerator = require("../utils/urlGenerator");
 const UserModel = require("../models/user.model");
 const ImageModel = require("../models/image.model");
 const db = require("../../config/db");
