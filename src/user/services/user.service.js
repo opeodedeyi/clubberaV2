@@ -1,6 +1,6 @@
 // src/user/services/user.service.js
 
-const UrlGenerator = require("../utils/UrlGenerator");
+const UrlGenerator = require("../utils/urlGenerator");
 const UserModel = require("../models/user.model");
 const LocationModel = require("../models/location.model");
 const ImageModel = require("../models/image.model");
