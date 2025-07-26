@@ -128,9 +128,9 @@ class UserService {
             createdAt: user.created_at,
         };
 
-        if (user.bio) profile.bio = user.bio;
-        if (user.gender) profile.gender = user.gender;
-        if (user.birthday) profile.birthday = user.birthday;
+        profile.bio = user.bio || null;
+        profile.gender = user.gender || null;
+        profile.birthday = user.birthday || null;
         if (user.preferences && Object.keys(user.preferences).length > 0) {
             profile.preferences = user.preferences;
         }
