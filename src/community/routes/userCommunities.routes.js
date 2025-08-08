@@ -1,3 +1,5 @@
+// src/community/routes/userCommunities.routes.js
+
 const express = require("express");
 const router = express.Router();
 const userCommunitiesController = require("../controllers/userCommunities.controller");

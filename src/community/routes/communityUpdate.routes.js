@@ -1,3 +1,5 @@
+// src/community/routes/communityUpdate.routes.js
+
 const express = require("express");
 const router = express.Router();
 const communityUpdateController = require("../controllers/communityUpdate.controller");

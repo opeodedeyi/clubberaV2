@@ -18,13 +18,6 @@ exports.createCommunity = [
         .trim()
         .isLength({ min: 3, max: 50 })
         .withMessage("Community name must be between 3 and 50 characters"),
-    body("unique_url")
-        .trim()
-        .isLength({ min: 3, max: 50 })
-        .matches(/^[a-zA-Z0-9-_]+$/)
-        .withMessage(
-            "Unique URL must be alphanumeric with optional dashes and underscores"
-        ),
     body("tagline")
         .optional()
         .trim()

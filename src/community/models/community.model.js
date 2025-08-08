@@ -3,6 +3,16 @@
 const db = require("../../config/db");
 
 class CommunityModel {
+    async checkUniqueUrlExists(uniqueUrl) {
+        const query = `
+            SELECT id FROM communities 
+            WHERE unique_url = $1 AND is_active = true
+            LIMIT 1
+        `;
+        const result = await db.query(query, [uniqueUrl]);
+        return result.rows.length > 0;
+    }
+
     async create(data) {
         const {
             name,

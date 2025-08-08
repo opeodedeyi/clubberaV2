@@ -1,3 +1,4 @@
+// src/community/controllers/communitySearch.controller.js
 const communitySearchModel = require("../models/communitySearch.model");
 const ApiError = require("../../utils/ApiError");
 const { validationResult } = require("express-validator");

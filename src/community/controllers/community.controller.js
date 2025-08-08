@@ -9,11 +9,22 @@ const restrictionModel = require("../models/restriction.model");
 const db = require("../../config/db");
 const ApiError = require("../../utils/ApiError");
 
+function generateUniqueUrl(name) {
+    return name
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9\s-]/g, "") // Remove special characters
+        .replace(/\s+/g, "-") // Replace spaces with hyphens
+        .replace(/-+/g, "-") // Replace multiple hyphens with single hyphen
+        .replace(/^-|-$/g, ""); // Remove leading/trailing hyphens
+}
+
 class CommunityController {
     async createCommunity(req, res, next) {
         try {
             const userId = req.user.id;
             const {
+                name,
                 location,
                 tags,
                 profile_image,
@@ -21,6 +32,17 @@ class CommunityController {
                 ...communityData
             } = req.body;
 
+            let baseUrl = generateUniqueUrl(name);
+            let uniqueUrl = baseUrl;
+            let counter = 1;
+
+            while (await communityModel.checkUniqueUrlExists(uniqueUrl)) {
+                uniqueUrl = `${baseUrl}-${counter}`;
+                counter++;
+            }
+
+            communityData.name = name;
+            communityData.unique_url = uniqueUrl;
             communityData.created_by = userId;
 
             const operations = [
@@ -658,7 +680,7 @@ class CommunityController {
             try {
                 const tags = await tagModel.getCommunityTags(community.id);
                 if (tags && tags.length > 0) {
-                    response.tags = tags;
+                    response.tags = tags.map((tag) => tag.name);
                 }
             } catch (error) {
                 console.error("Error fetching tags:", error);
