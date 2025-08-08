@@ -20,7 +20,7 @@ class UserModel {
             passwordHash,
             uniqueUrl = null,
             bio = null,
-            gender = null,
+            gender = "prefer not to say",
             birthday = null,
             preferences = {},
         } = userData;
@@ -28,13 +28,13 @@ class UserModel {
         return {
             text: `
                 INSERT INTO users(
-                    full_name, 
-                    email, 
-                    password_hash, 
-                    unique_url, 
-                    bio, 
-                    gender, 
-                    birthday, 
+                    full_name,
+                    email,
+                    password_hash,
+                    unique_url,
+                    bio,
+                    gender,
+                    birthday,
                     preferences
                 ) 
                 VALUES($1, $2, $3, $4, $5, $6, $7, $8) 

@@ -8,7 +8,7 @@ const communityValidator = require("../validators/community.validator");
 const subscriptionValidator = require("../validators/subscription.validator");
 const restrictionRoutes = require("./restriction.routes");
 const { authenticate } = require("../../middleware/auth");
-const { optionalAuth } = require("../../middleware/optionalAuth");
+const optionalAuth = require("../../middleware/optionalAuth");
 const { verifyEmail } = require("../../middleware/verifyEmail");
 const { requireRole } = require("../../middleware/role");
 

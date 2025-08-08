@@ -11,31 +11,42 @@ class CommunityLocationModel {
             address,
         } = data;
 
-        const query = `
+        // First check if location already exists
+        const existingLocation = await this.findByEntity(
+            "community",
+            community_id,
+            location_type
+        );
+
+        if (existingLocation) {
+            // Update existing location
+            return await this.update(existingLocation.id, {
+                name,
+                lat,
+                lng,
+                address,
+            });
+        } else {
+            // Create new location
+            const query = `
             INSERT INTO locations
                 (entity_type, entity_id, name, location_type, lat, lng, address)
             VALUES
                 ('community', $1, $2, $3, $4, $5, $6)
-            ON CONFLICT (entity_type, entity_id, location_type) 
-            DO UPDATE SET
-                name = EXCLUDED.name,
-                lat = EXCLUDED.lat,
-                lng = EXCLUDED.lng,
-                address = EXCLUDED.address,
-                updated_at = CURRENT_TIMESTAMP
             RETURNING *
         `;
 
-        const result = await db.query(query, [
-            community_id,
-            name,
-            location_type,
-            lat,
-            lng,
-            address,
-        ]);
+            const result = await db.query(query, [
+                community_id,
+                name,
+                location_type,
+                lat,
+                lng,
+                address,
+            ]);
 
-        return result.rows[0];
+            return result.rows[0];
+        }
     }
 
     async findByCommunity(communityId) {

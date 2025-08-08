@@ -1,3 +1,5 @@
+// src/community/controllers/communityUpdate.controller.js
+
 const communityModel = require("../models/community.model");
 const communityLocationModel = require("../models/location.model"); // Renamed to match your implementation
 const communityImageModel = require("../models/image.model"); // Renamed to match your implementation
@@ -6,31 +8,29 @@ const communityAdminModel = require("../models/communityAdmin.model");
 const ApiError = require("../../utils/ApiError");
 const db = require("../../config/db");
 
-class CommunityUpdateController {
-    // Helper method to check if user has permission to update the community
-    async _checkUpdatePermission(communityId, userId) {
-        const community = await communityModel.findByIdentifier(communityId);
-        if (!community) {
-            throw new ApiError("Community not found or inactive", 404);
-        }
-
-        // Only owner and organizers can update community details
-        const hasPermission = await communityModel.checkMemberRole(
-            communityId,
-            userId,
-            ["owner", "organizer"]
-        );
-
-        if (!hasPermission) {
-            throw new ApiError(
-                "You don't have permission to update this community",
-                403
-            );
-        }
-
-        return community;
+async function checkUpdatePermission(communityId, userId) {
+    const community = await communityModel.findByIdentifier(communityId);
+    if (!community) {
+        throw new ApiError("Community not found or inactive", 404);
     }
 
+    const hasPermission = await communityModel.checkMemberRole(
+        communityId,
+        userId,
+        ["owner", "organizer"]
+    );
+
+    if (!hasPermission) {
+        throw new ApiError(
+            "You don't have permission to update this community",
+            403
+        );
+    }
+
+    return community;
+}
+
+class CommunityUpdateController {
     // Update basic community details
     async updateBasicDetails(req, res, next) {
         try {
@@ -39,10 +39,7 @@ class CommunityUpdateController {
             const { location, ...communityData } = req.body;
 
             // Check permissions
-            const community = await this._checkUpdatePermission(
-                communityId,
-                userId
-            );
+            const community = await checkUpdatePermission(communityId, userId);
 
             // Start tracking changes for audit
             const previousState = {
@@ -155,7 +152,7 @@ class CommunityUpdateController {
             const { provider, key, alt_text } = req.body;
 
             // Check permissions
-            await this._checkUpdatePermission(communityId, userId);
+            await checkUpdatePermission(communityId, userId);
 
             // Check if profile image already exists
             let profileImage = await communityImageModel.getProfileImage(
@@ -226,7 +223,7 @@ class CommunityUpdateController {
             const { provider, key, alt_text } = req.body;
 
             // Check permissions
-            await this._checkUpdatePermission(communityId, userId);
+            await checkUpdatePermission(communityId, userId);
 
             // Check if cover image already exists
             let coverImage = await communityImageModel.getCoverImage(
@@ -294,28 +291,15 @@ class CommunityUpdateController {
             const { tags } = req.body;
 
             // Check permissions
-            await this._checkUpdatePermission(communityId, userId);
+            await checkUpdatePermission(communityId, userId);
 
             // Get current tags for audit
             const currentTags = await communityTagModel.getCommunityTags(
                 communityId
             );
 
-            // Start transaction operations
-            const operations = [];
+            await communityTagModel.removeAllCommunityTags(communityId);
 
-            // Delete existing tags operation
-            operations.push({
-                text: `DELETE FROM tag_assignments 
-                    WHERE entity_type = 'community' AND entity_id = $1`,
-                values: [communityId],
-            });
-
-            // Execute transaction
-            await db.executeTransaction(operations);
-
-            // Add new tags (outside transaction since we'll use assignTagByName)
-            const newTags = [];
             if (tags && tags.length > 0) {
                 for (const tagName of tags) {
                     const trimmedTagName = tagName.trim().toLowerCase();
@@ -323,10 +307,6 @@ class CommunityUpdateController {
                         community_id: communityId,
                         tag_name: trimmedTagName,
                         assignment_type: "category",
-                    });
-
-                    newTags.push({
-                        name: trimmedTagName,
                     });
                 }
             }
@@ -345,11 +325,13 @@ class CommunityUpdateController {
                 new_state: { tags: updatedTags },
             });
 
+            const formattedTags = updatedTags.map((tag) => tag.name);
+
             res.json({
                 status: "success",
                 message: "Community tags updated successfully",
                 data: {
-                    tags: updatedTags,
+                    tags: formattedTags,
                 },
             });
         } catch (error) {
