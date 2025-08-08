@@ -1,3 +1,5 @@
+// src/community/validators/communityUpdate.validator.js
+
 const { body, param, validationResult } = require("express-validator");
 const ApiError = require("../../utils/ApiError");
 

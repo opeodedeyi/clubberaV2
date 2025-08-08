@@ -1,3 +1,5 @@
+// src/community/routes/communityAdmin.routes.js
+
 const express = require("express");
 const router = express.Router();
 const communityAdminController = require("../controllers/communityAdmin.controller");

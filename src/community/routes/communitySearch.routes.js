@@ -1,3 +1,5 @@
+// src/community/routes/communitySearch.routes.js
+
 const express = require("express");
 const router = express.Router();
 const communitySearchController = require("../controllers/communitySearch.controller");

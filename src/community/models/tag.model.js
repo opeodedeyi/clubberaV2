@@ -51,6 +51,14 @@ class CommunityTagModel {
         return result.rows[0];
     }
 
+    async removeAllCommunityTags(communityId) {
+        const query = `
+            DELETE FROM tag_assignments 
+            WHERE entity_type = 'community' AND entity_id = $1
+        `;
+        return await db.query(query, [communityId]);
+    }
+
     async getCommunityTags(communityId, assignmentType = null) {
         let query = `
             SELECT t.id, t.name, ta.assignment_type
