@@ -771,6 +771,79 @@ class CommunityController {
             next(error);
         }
     }
+
+    async checkUserPermissions(req, res, next) {
+        try {
+            const communityId = parseInt(req.params.id);
+            const userId = req.user.id;
+
+            // Check if community exists and is active
+            const community = await communityModel.findByIdentifier(
+                communityId
+            );
+            if (!community) {
+                return next(
+                    new ApiError("Community not found or inactive", 404)
+                );
+            }
+
+            // Check if user is a member
+            const membership = await communityModel.getMember(
+                communityId,
+                userId
+            );
+
+            if (!membership) {
+                return res.json({
+                    status: "success",
+                    data: {
+                        isMember: false,
+                        isOwner: false,
+                        isOrganizer: false,
+                        isAdmin: false,
+                        canCreateEvents: false,
+                        canEditCommunity: false,
+                        canManageMembers: false,
+                        canViewAnalytics: false,
+                        role: null,
+                    },
+                });
+            }
+
+            // Determine permissions based on role
+            const role = membership.role;
+            const isOwner = role === "owner";
+            const isOrganizer = role === "organizer";
+            const isModerator = role === "moderator";
+            const isAdmin = isOwner || isOrganizer || isModerator;
+
+            // Define specific permissions
+            const permissions = {
+                isMember: true,
+                isOwner,
+                isOrganizer,
+                isModerator,
+                isAdmin,
+                role,
+                // Specific action permissions
+                canCreateEvents: isOwner || isOrganizer,
+                canEditCommunity: isOwner || isOrganizer,
+                canManageMembers: isOwner || isOrganizer || isModerator,
+                canViewAnalytics: isOwner || isOrganizer,
+                canManageRoles: isOwner || isOrganizer,
+                canDeleteCommunity: isOwner,
+                canTransferOwnership: isOwner,
+                canManageSubscription: isOwner,
+            };
+
+            res.json({
+                status: "success",
+                data: permissions,
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
 }
 
 module.exports = new CommunityController();

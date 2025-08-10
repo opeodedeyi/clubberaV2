@@ -31,6 +31,13 @@ router.get(
     communityController.getCommunityDetails
 );
 
+router.get(
+    "/:id/permissions",
+    authenticate,
+    communityValidator.checkPermissions, // We'll create this validator
+    communityController.checkUserPermissions
+);
+
 // Deactivate a community (owner only)
 router.put(
     "/:id/deactivate",
