@@ -1,12 +1,14 @@
+// src/tempUpload/routes/tempUpload.routes.js
+
 const router = require("express").Router();
 const tempUploadController = require("../controllers/tempUpload.controller");
 const validator = require("../validators/tempUpload.validator");
-const authMiddleware = require("../../middleware/auth");
-const verifyEmailMiddleware = require("../../middleware/verifyEmail");
+const { authenticate } = require("../../middleware/auth"); // Changed
+const { verifyEmail } = require("../../middleware/verifyEmail"); // Changed
 
 // All routes require authentication
-router.use(authMiddleware.authenticate);
-router.use(verifyEmailMiddleware.verifyEmail);
+router.use(authenticate);
+router.use(verifyEmail);
 
 // Get pre-signed URL for temporary uploads (used during entity creation)
 router.post(

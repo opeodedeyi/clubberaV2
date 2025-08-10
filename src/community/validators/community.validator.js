@@ -112,3 +112,8 @@ exports.validateGetMembers = [
         .withMessage("Invalid role filter"),
     validate,
 ];
+
+exports.checkPermissions = [
+    param("id").isInt().withMessage("Invalid community ID"),
+    validate,
+];
