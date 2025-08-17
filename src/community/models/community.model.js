@@ -263,23 +263,41 @@ class CommunityModel {
     async createJoinRequest(data) {
         const { community_id, user_id, message } = data;
 
-        const query = `
-            INSERT INTO community_join_requests (community_id, user_id, message)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (community_id, user_id, status) 
-            WHERE status = 'pending'
-            DO UPDATE SET 
-                message = EXCLUDED.message,
-                created_at = CURRENT_TIMESTAMP
-            RETURNING *
-        `;
-
-        const result = await db.query(query, [
+        const existingRequest = await this.getJoinRequestByUser(
             community_id,
-            user_id,
-            message || null,
-        ]);
-        return result.rows[0];
+            user_id
+        );
+
+        if (existingRequest && existingRequest.status === "pending") {
+            // Update the existing pending request
+            const query = `
+                UPDATE community_join_requests 
+                SET message = $1, created_at = CURRENT_TIMESTAMP
+                WHERE community_id = $2 AND user_id = $3 AND status = 'pending'
+                RETURNING *
+            `;
+
+            const result = await db.query(query, [
+                message || null,
+                community_id,
+                user_id,
+            ]);
+            return result.rows[0];
+        } else {
+            // Create a new request
+            const query = `
+                INSERT INTO community_join_requests (community_id, user_id, message)
+                VALUES ($1, $2, $3)
+                RETURNING *
+            `;
+
+            const result = await db.query(query, [
+                community_id,
+                user_id,
+                message || null,
+            ]);
+            return result.rows[0];
+        }
     }
 
     async getJoinRequestByUser(communityId, userId) {
