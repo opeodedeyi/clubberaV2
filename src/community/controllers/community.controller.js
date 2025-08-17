@@ -721,6 +721,9 @@ class CommunityController {
                     isAdmin: false,
                     membershipDetails: null,
                     activeRestrictions: null,
+                    joinRequestStatus: null, // 'pending', 'approved', 'rejected', or null
+                    joinRequestId: null,
+                    joinRequestDate: null,
                 };
 
                 // Check if user is a member and get role
@@ -758,6 +761,28 @@ class CommunityController {
                     }
                 } catch (error) {
                     console.error("Error checking restrictions:", error);
+                }
+
+                if (community.is_private && !userRelationship.isMember) {
+                    try {
+                        const existingRequest =
+                            await communityModel.getJoinRequestByUser(
+                                community.id,
+                                userId
+                            );
+                        if (existingRequest) {
+                            userRelationship.joinRequestStatus =
+                                existingRequest.status;
+                            userRelationship.joinRequestId = existingRequest.id;
+                            userRelationship.joinRequestDate =
+                                existingRequest.created_at;
+                        } else {
+                            userRelationship.joinRequestStatus = null;
+                        }
+                    } catch (error) {
+                        console.error("Error checking join request:", error);
+                        userRelationship.joinRequestStatus = null;
+                    }
                 }
 
                 response.user = userRelationship;
