@@ -282,6 +282,19 @@ class CommunityModel {
         return result.rows[0];
     }
 
+    async getJoinRequestByUser(communityId, userId) {
+        const query = `
+            SELECT id, status, created_at, responded_at
+            FROM community_join_requests
+            WHERE community_id = $1 AND user_id = $2
+            ORDER BY created_at DESC
+            LIMIT 1
+        `;
+
+        const result = await db.query(query, [communityId, userId]);
+        return result.rows[0] || null;
+    }
+
     async getJoinRequests(communityId, options = {}) {
         const { limit = 50, offset = 0 } = options;
 
