@@ -14,6 +14,7 @@ const communityUpdateRoutes = require("./src/community/routes/communityUpdate.ro
 const communityAdminRoutes = require("./src/community/routes/communityAdmin.routes");
 const userCommunitiesRoutes = require("./src/community/routes/userCommunities.routes");
 const communitySearchRoutes = require("./src/community/routes/communitySearch.routes");
+const communityRecommendationsRoutes = require("./src/community/routes/recommendations.routes");
 const tempUploadRoutes = require("./src/tempUpload/routes/tempUpload.routes");
 // const supportPlanRoutes = require("./src/communitySupport/routes/supportPlan.routes");
 // const supportSubscriptionRoutes = require("./src/communitySupport/routes/supportSubscription.routes");
@@ -65,6 +66,7 @@ app.use("/api/tags", tagRoutes);
 app.use("/api/communities", communityRoutes);
 app.use("/api/communities", communityUpdateRoutes);
 app.use("/api/community-search", communitySearchRoutes);
+app.use("/api/recommendations", communityRecommendationsRoutes);
 // app.use("/api/communities", supportPlanRoutes);
 // app.use("/api/communities", supportSubscriptionRoutes);
 // app.use("/api/webhooks", webhookRoutes);

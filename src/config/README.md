@@ -539,4 +539,51 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trigger_update_community_search_on_location_change
 AFTER INSERT OR UPDATE OR DELETE ON locations
 FOR EACH ROW EXECUTE FUNCTION update_community_search_document_on_location_change();
+
+
+-- ========================================================================
+-- PROXIMITY SEARCH ENHANCEMENTS (PostGIS)
+-- ========================================================================
+-- The following additions enable geographic proximity search functionality
+-- while maintaining all existing functionality. No breaking changes.
+
+-- 1. Enable PostGIS extension for advanced geographic functions
+CREATE EXTENSION IF NOT EXISTS postgis;
+
+-- 2. Add geometry column to locations table for efficient spatial queries
+ALTER TABLE locations ADD COLUMN geom geometry(POINT, 4326);
+
+-- 3. Create spatial index for fast proximity searches
+CREATE INDEX CONCURRENTLY idx_locations_geom ON locations USING GIST (geom);
+
+-- 4. Create trigger function to auto-populate geom column from lat/lng
+CREATE OR REPLACE FUNCTION update_location_geom() RETURNS TRIGGER AS $$
+BEGIN
+    -- Auto-populate geom field when lat/lng are provided
+    IF NEW.lat IS NOT NULL AND NEW.lng IS NOT NULL THEN
+        NEW.geom := ST_SetSRID(ST_MakePoint(NEW.lng, NEW.lat), 4326);
+    ELSE
+        NEW.geom := NULL;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 5. Create trigger to automatically maintain geom column
+CREATE TRIGGER trigger_update_location_geom
+    BEFORE INSERT OR UPDATE ON locations
+    FOR EACH ROW EXECUTE FUNCTION update_location_geom();
+
+-- 6. Populate geom column for existing location data (one-time migration)
+UPDATE locations 
+SET geom = ST_SetSRID(ST_MakePoint(lng, lat), 4326)
+WHERE lat IS NOT NULL AND lng IS NOT NULL AND geom IS NULL;
+
+-- ========================================================================
+-- NOTES:
+-- - All existing location creation/update code continues to work unchanged
+-- - The geom column is automatically populated via database trigger
+-- - No breaking changes to existing API functionality
+-- - Enables new proximity search capabilities: "find communities near me"
+-- ========================================================================
 ```
