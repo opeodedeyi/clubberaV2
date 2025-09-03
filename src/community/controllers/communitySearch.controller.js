@@ -17,14 +17,33 @@ class CommunitySearchController {
             // Include private communities if user is authenticated
             const includePrivate = !!req.user;
 
-            // Get search results
-            const { communities, total } =
-                await communitySearchModel.searchCommunities({
+            // Check if proximity parameters are provided
+            const { lat, lng, radius } = req.query;
+            
+            let searchResults;
+            
+            if (lat && lng) {
+                // Use proximity search
+                searchResults = await communitySearchModel.searchWithProximity({
+                    query,
+                    lat: parseFloat(lat),
+                    lng: parseFloat(lng),
+                    radius: radius ? parseFloat(radius) : 25,
+                    limit: parseInt(limit),
+                    offset: parseInt(offset),
+                    includePrivate,
+                });
+            } else {
+                // Use regular text search
+                searchResults = await communitySearchModel.searchCommunities({
                     query,
                     limit: parseInt(limit),
                     offset: parseInt(offset),
                     includePrivate,
                 });
+            }
+
+            const { communities, total } = searchResults;
 
             // Format the response
             const formattedCommunities = communities.map((community) => ({

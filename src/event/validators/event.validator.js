@@ -67,7 +67,7 @@ const validateCreateEvent = [
             try {
                 Intl.DateTimeFormat(undefined, { timeZone: value });
                 return true;
-            } catch (error) {
+            } catch {
                 throw new Error("Invalid timezone");
             }
         }),
@@ -122,10 +122,27 @@ const validateCreateEvent = [
         .isLength({ max: 500 })
         .withMessage("Address cannot exceed 500 characters"),
 
-    body("coverImageKey")
+    body("coverImage")
+        .optional()
+        .isObject()
+        .withMessage("Cover image must be an object"),
+    
+    body("coverImage.provider")
         .optional()
         .isString()
-        .withMessage("Cover image key must be a string"),
+        .withMessage("Cover image provider must be a string"),
+        
+    body("coverImage.key")
+        .optional()
+        .isString()
+        .isLength({ min: 1, max: 255 })
+        .withMessage("Cover image key must be a string between 1-255 characters"),
+        
+    body("coverImage.alt_text")
+        .optional()
+        .isString()
+        .isLength({ max: 255 })
+        .withMessage("Cover image alt text must be a string with max 255 characters"),
 
     // Validate the past date only if it's more than 5 minutes in the past
     body("startTime").custom((value) => {
@@ -200,7 +217,7 @@ const validateUpdateEvent = [
             try {
                 Intl.DateTimeFormat(undefined, { timeZone: value });
                 return true;
-            } catch (error) {
+            } catch {
                 throw new Error("Invalid timezone");
             }
         }),
@@ -255,10 +272,27 @@ const validateUpdateEvent = [
         .isLength({ max: 500 })
         .withMessage("Address cannot exceed 500 characters"),
 
-    body("coverImageKey")
+    body("coverImage")
+        .optional()
+        .isObject()
+        .withMessage("Cover image must be an object"),
+    
+    body("coverImage.provider")
         .optional()
         .isString()
-        .withMessage("Cover image key must be a string"),
+        .withMessage("Cover image provider must be a string"),
+        
+    body("coverImage.key")
+        .optional()
+        .isString()
+        .isLength({ min: 1, max: 255 })
+        .withMessage("Cover image key must be a string between 1-255 characters"),
+        
+    body("coverImage.alt_text")
+        .optional()
+        .isString()
+        .isLength({ max: 255 })
+        .withMessage("Cover image alt text must be a string with max 255 characters"),
 
     // Only validate future date if startTime is being updated
     body("startTime")
@@ -335,7 +369,69 @@ const validateCommunityEventsQuery = [
             try {
                 Intl.DateTimeFormat(undefined, { timeZone: value });
                 return true;
-            } catch (error) {
+            } catch {
+                throw new Error("Invalid timezone");
+            }
+        }),
+
+    checkValidationErrors,
+];
+
+// Validate user events query parameters (without communityId param)
+const validateUserEventsQuery = [
+    query("page")
+        .optional()
+        .isInt({ min: 1 })
+        .withMessage("Page must be a positive integer"),
+
+    query("limit")
+        .optional()
+        .isInt({ min: 1, max: 100 })
+        .withMessage("Limit must be a positive integer not exceeding 100"),
+
+    query("upcoming")
+        .optional()
+        .customSanitizer((value) => {
+            if (value === "true" || value === true) return true;
+            if (value === "false" || value === false) return false;
+            return undefined;
+        }),
+
+    query("pastEvents")
+        .optional()
+        .customSanitizer((value) => {
+            if (value === "true" || value === true) return true;
+            if (value === "false" || value === false) return false;
+            return undefined;
+        }),
+
+    query("isSupportersOnly")
+        .optional()
+        .customSanitizer((value) => {
+            if (value === "true" || value === true) return true;
+            if (value === "false" || value === false) return false;
+            return undefined;
+        }),
+
+    query("startDate")
+        .optional()
+        .isISO8601()
+        .withMessage("StartDate must be a valid ISO 8601 date string"),
+
+    query("endDate")
+        .optional()
+        .isISO8601()
+        .withMessage("EndDate must be a valid ISO 8601 date string"),
+
+    query("timezone")
+        .optional()
+        .isString()
+        .withMessage("Timezone must be a valid string")
+        .custom((value) => {
+            try {
+                Intl.DateTimeFormat(undefined, { timeZone: value });
+                return true;
+            } catch {
                 throw new Error("Invalid timezone");
             }
         }),
@@ -348,4 +444,5 @@ module.exports = {
     validateCreateEvent,
     validateUpdateEvent,
     validateCommunityEventsQuery,
+    validateUserEventsQuery,
 };

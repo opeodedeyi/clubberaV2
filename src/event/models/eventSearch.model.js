@@ -3,6 +3,195 @@ const db = require("../../config/db");
 const ApiError = require("../../utils/ApiError");
 
 class EventSearchModel {
+    async searchEventsSimple(options = {}) {
+        try {
+            const {
+                query = "",
+                page = 1,
+                limit = 10,
+                timeRange = null,
+                tags = [],
+                sortBy = "date",
+                communityId = null,
+            } = options;
+
+            const offset = (page - 1) * limit;
+            let params = [];
+            let paramCounter = 1;
+            
+            // Base query
+            let sqlQuery = `
+                SELECT 
+                    e.*, 
+                    p.community_id, 
+                    p.user_id, 
+                    p.is_supporters_only, 
+                    c.name AS community_name,
+                    (
+                        SELECT json_build_object(
+                            'id', i.id,
+                            'entityType', i.entity_type,
+                            'entityId', i.entity_id,
+                            'imageType', i.image_type,
+                            'provider', i.provider,
+                            'key', i.key,
+                            'altText', i.alt_text,
+                            'createdAt', i.created_at
+                        )
+                        FROM images i
+                        WHERE i.entity_type = 'event' AND i.entity_id = e.id AND i.image_type = 'cover'
+                        LIMIT 1
+                    ) AS cover_image,
+                    (
+                        SELECT COUNT(*) 
+                        FROM event_attendees ea 
+                        WHERE ea.event_id = e.id AND ea.status = 'attending'
+                    ) AS attendee_count,
+                    (
+                        SELECT json_agg(
+                            json_build_object(
+                                'id', t.id,
+                                'name', t.name
+                            )
+                        )
+                        FROM tags t
+                        JOIN tag_assignments ta ON t.id = ta.tag_id
+                        WHERE ta.entity_type = 'event' AND ta.entity_id = e.id
+                    ) AS tags,
+                    EXTRACT(EPOCH FROM (e.start_time - NOW())) AS seconds_until_start
+                FROM events e
+                JOIN posts p ON e.post_id = p.id
+                JOIN communities c ON p.community_id = c.id
+                WHERE e.start_time >= NOW()
+                AND c.is_private = false
+            `;
+
+            // Add search filter
+            if (query && query.trim() !== "") {
+                const searchTerm = `%${query.trim()}%`;
+                sqlQuery += ` AND (
+                    e.title ILIKE $${paramCounter} OR 
+                    e.description ILIKE $${paramCounter} OR 
+                    c.name ILIKE $${paramCounter}
+                )`;
+                params.push(searchTerm);
+                paramCounter++;
+            }
+
+            // Time range filter
+            if (timeRange) {
+                if (timeRange === "24h") {
+                    sqlQuery += ` AND e.start_time <= NOW() + INTERVAL '1 day'`;
+                } else if (timeRange === "1w") {
+                    sqlQuery += ` AND e.start_time <= NOW() + INTERVAL '1 week'`;
+                } else if (timeRange === "1m") {
+                    sqlQuery += ` AND e.start_time <= NOW() + INTERVAL '1 month'`;
+                }
+            }
+
+            // Community filter
+            if (communityId) {
+                sqlQuery += ` AND p.community_id = $${paramCounter}`;
+                params.push(communityId);
+                paramCounter++;
+            }
+
+            // Tag filter
+            if (tags && tags.length > 0) {
+                sqlQuery += ` AND e.id IN (
+                    SELECT DISTINCT ta.entity_id
+                    FROM tag_assignments ta
+                    JOIN tags t ON t.id = ta.tag_id
+                    WHERE ta.entity_type = 'event' 
+                    AND t.name IN (${tags.map((_, idx) => `$${paramCounter + idx}`).join(", ")})
+                )`;
+                params.push(...tags);
+                paramCounter += tags.length;
+            }
+
+            // Add sorting
+            sqlQuery += ` ORDER BY e.start_time ASC`;
+
+            // Add pagination
+            sqlQuery += ` LIMIT $${paramCounter} OFFSET $${paramCounter + 1}`;
+            params.push(limit, offset);
+
+            // Simple count query
+            let countQuery = `
+                SELECT COUNT(*)
+                FROM events e
+                JOIN posts p ON e.post_id = p.id
+                JOIN communities c ON p.community_id = c.id
+                WHERE e.start_time >= NOW()
+                AND c.is_private = false
+            `;
+
+            let countParams = [];
+            let countParamCounter = 1;
+
+            // Add same filters to count query
+            if (query && query.trim() !== "") {
+                const searchTerm = `%${query.trim()}%`;
+                countQuery += ` AND (
+                    e.title ILIKE $${countParamCounter} OR 
+                    e.description ILIKE $${countParamCounter} OR 
+                    c.name ILIKE $${countParamCounter}
+                )`;
+                countParams.push(searchTerm);
+                countParamCounter++;
+            }
+
+            if (timeRange) {
+                if (timeRange === "24h") {
+                    countQuery += ` AND e.start_time <= NOW() + INTERVAL '1 day'`;
+                } else if (timeRange === "1w") {
+                    countQuery += ` AND e.start_time <= NOW() + INTERVAL '1 week'`;
+                } else if (timeRange === "1m") {
+                    countQuery += ` AND e.start_time <= NOW() + INTERVAL '1 month'`;
+                }
+            }
+
+            if (communityId) {
+                countQuery += ` AND p.community_id = $${countParamCounter}`;
+                countParams.push(communityId);
+                countParamCounter++;
+            }
+
+            if (tags && tags.length > 0) {
+                countQuery += ` AND e.id IN (
+                    SELECT DISTINCT ta.entity_id
+                    FROM tag_assignments ta
+                    JOIN tags t ON t.id = ta.tag_id
+                    WHERE ta.entity_type = 'event' 
+                    AND t.name IN (${tags.map((_, idx) => `$${countParamCounter + idx}`).join(", ")})
+                )`;
+                countParams.push(...tags);
+            }
+
+            // Execute queries
+            const [eventsResult, countResult] = await Promise.all([
+                db.query(sqlQuery, params),
+                db.query(countQuery, countParams),
+            ]);
+
+            // Format results
+            const events = eventsResult.rows.map((row) => this._formatSearchResult(row));
+            const totalCount = parseInt(countResult.rows[0].count);
+
+            return {
+                events,
+                pagination: {
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    totalItems: totalCount,
+                    totalPages: Math.ceil(totalCount / limit),
+                },
+            };
+        } catch (error) {
+            throw new ApiError(`Error searching events: ${error.message}`, 500);
+        }
+    }
+
     async searchEvents(options = {}) {
         try {
             const {
@@ -65,27 +254,12 @@ class EventSearchModel {
                     WHERE l.entity_type = 'event' AND l.entity_id = e.id
                     LIMIT 1
                     ) AS location_text,
-                    to_tsvector('english', 
-                    COALESCE(e.title, '') || ' ' ||
-                    COALESCE(e.description, '') || ' ' ||
-                    COALESCE(c.name, '') || ' ' ||
-                    COALESCE((
-                        SELECT string_agg(t.name, ' ')
-                        FROM tags t
-                        JOIN tag_assignments ta ON t.id = ta.tag_id
-                        WHERE ta.entity_type = 'event' AND ta.entity_id = e.id
-                    ), '') || ' ' ||
-                    COALESCE((
-                        SELECT l.address || ' ' || l.name
-                        FROM locations l
-                        WHERE l.entity_type = 'event' AND l.entity_id = e.id
-                        LIMIT 1
-                    ), '')
-                    ) AS search_vector
+                    1 as search_placeholder
                 FROM events e
                 JOIN posts p ON e.post_id = p.id
                 JOIN communities c ON p.community_id = c.id
                 WHERE e.start_time >= NOW()
+                AND c.is_private = false
             `;
 
             // Add time range filter if provided
@@ -106,19 +280,18 @@ class EventSearchModel {
                 paramCounter++;
             }
 
-            // Process and sanitize the search query
-            let searchTerms = "";
+            // Simple text search with ILIKE
             if (query && query.trim() !== "") {
-                // Remove any dangerous SQL characters and prepare for tsquery
-                searchTerms = this._sanitizeAndPrepareSearchQuery(query.trim());
-
-                if (searchTerms) {
-                    sqlQuery += `
-                        AND search_vector @@ to_tsquery('english', $${paramCounter})
-                    `;
-                    params.push(searchTerms);
-                    paramCounter++;
-                }
+                const searchTerm = `%${query.trim()}%`;
+                sqlQuery += `
+                    AND (
+                        e.title ILIKE $${paramCounter} OR 
+                        e.description ILIKE $${paramCounter} OR 
+                        c.name ILIKE $${paramCounter}
+                    )
+                `;
+                params.push(searchTerm);
+                paramCounter++;
             }
 
             // If there are tags, prepare a CTE for filtering by tags
@@ -158,15 +331,17 @@ class EventSearchModel {
             }
 
             // Add sort order
-            if (sortBy === "relevance" && searchTerms) {
-                // For relevance sorting when there's a search query
+            if (sortBy === "relevance" && query) {
+                // Simple relevance based on field priority
+                const searchTerm = `%${query.trim()}%`;
                 sqlQuery += `
                     ORDER BY
-                        ts_rank(search_vector, to_tsquery('english', $${
-                            paramCounter -
-                            (tags.length > 0 ? tags.length : 0) -
-                            (searchTerms ? 1 : 0)
-                        })) DESC,
+                        CASE 
+                            WHEN ed.title ILIKE '${searchTerm}' THEN 1
+                            WHEN ed.description ILIKE '${searchTerm}' THEN 2
+                            WHEN ed.community_name ILIKE '${searchTerm}' THEN 3
+                            ELSE 4
+                        END ASC,
                         ed.start_time ASC
                 `;
             } else {
@@ -186,27 +361,12 @@ class EventSearchModel {
             let countQuery = `
                 WITH event_data AS (
                 SELECT e.id,
-                    to_tsvector('english', 
-                    COALESCE(e.title, '') || ' ' ||
-                    COALESCE(e.description, '') || ' ' ||
-                    COALESCE(c.name, '') || ' ' ||
-                    COALESCE((
-                        SELECT string_agg(t.name, ' ')
-                        FROM tags t
-                        JOIN tag_assignments ta ON t.id = ta.tag_id
-                        WHERE ta.entity_type = 'event' AND ta.entity_id = e.id
-                    ), '') || ' ' ||
-                    COALESCE((
-                        SELECT l.address || ' ' || l.name
-                        FROM locations l
-                        WHERE l.entity_type = 'event' AND l.entity_id = e.id
-                        LIMIT 1
-                    ), '')
-                    ) AS search_vector
+                    1 as search_placeholder
                 FROM events e
                 JOIN posts p ON e.post_id = p.id
                 JOIN communities c ON p.community_id = c.id
                 WHERE e.start_time >= NOW()
+                AND c.is_private = false
             `;
 
             // Add time range filter if provided (same as main query)
@@ -226,11 +386,14 @@ class EventSearchModel {
             }
 
             // Add search filter if provided
-            if (searchTerms) {
+            if (query && query.trim() !== "") {
+                const searchTerm = `%${query.trim()}%`;
                 countQuery += `
-                    AND search_vector @@ to_tsquery('english', $${
-                        communityId ? 2 : 1
-                    })
+                    AND (
+                        e.title ILIKE $${communityId ? 2 : 1} OR 
+                        e.description ILIKE $${communityId ? 2 : 1} OR 
+                        c.name ILIKE $${communityId ? 2 : 1}
+                    )
                 `;
             }
 
@@ -291,6 +454,289 @@ class EventSearchModel {
             };
         } catch (error) {
             throw new ApiError(`Error searching events: ${error.message}`, 500);
+        }
+    }
+
+    async searchEventsWithProximity(options = {}) {
+        try {
+            const {
+                query = "",
+                lat,
+                lng,
+                radius = 25,
+                page = 1,
+                limit = 10,
+                timeRange = null,
+                tags = [],
+                sortBy = "distance", // 'distance', 'date', 'relevance'
+                communityId = null,
+            } = options;
+
+            const offset = (page - 1) * limit;
+            const params = [lng, lat];
+            let paramCounter = 3;
+
+            // Build the query with location-based filtering
+            let sqlQuery = `
+                WITH event_data AS (
+                SELECT 
+                    e.*, 
+                    p.community_id, 
+                    p.user_id, 
+                    p.is_supporters_only, 
+                    c.name AS community_name,
+                    ST_Distance(l.geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)) * 69.0 AS distance_miles,
+                    (
+                    SELECT json_build_object(
+                        'id', i.id,
+                        'entityType', i.entity_type,
+                        'entityId', i.entity_id,
+                        'imageType', i.image_type,
+                        'provider', i.provider,
+                        'key', i.key,
+                        'altText', i.alt_text,
+                        'createdAt', i.created_at
+                    )
+                    FROM images i
+                    WHERE i.entity_type = 'event' AND i.entity_id = e.id AND i.image_type = 'cover'
+                    LIMIT 1
+                    ) AS cover_image,
+                    (
+                    SELECT COUNT(*) 
+                    FROM event_attendees ea 
+                    WHERE ea.event_id = e.id AND ea.status = 'attending'
+                    ) AS attendee_count,
+                    (
+                    SELECT json_agg(
+                        json_build_object(
+                        'id', t.id,
+                        'name', t.name
+                        )
+                    )
+                    FROM tags t
+                    JOIN tag_assignments ta ON t.id = ta.tag_id
+                    WHERE ta.entity_type = 'event' AND ta.entity_id = e.id
+                    ) AS tags,
+                    (
+                    SELECT json_build_object(
+                        'id', loc.id,
+                        'name', loc.name,
+                        'locationType', loc.location_type,
+                        'lat', loc.lat,
+                        'lng', loc.lng,
+                        'address', loc.address
+                    )
+                    FROM locations loc
+                    WHERE loc.entity_type = 'event' AND loc.entity_id = e.id
+                    LIMIT 1
+                    ) AS event_location,
+                    to_tsvector('english', 
+                    COALESCE(e.title, '') || ' ' ||
+                    COALESCE(e.description, '') || ' ' ||
+                    COALESCE(c.name, '') || ' ' ||
+                    COALESCE((
+                        SELECT string_agg(t.name, ' ')
+                        FROM tags t
+                        JOIN tag_assignments ta ON t.id = ta.tag_id
+                        WHERE ta.entity_type = 'event' AND ta.entity_id = e.id
+                    ), '') || ' ' ||
+                    COALESCE((
+                        SELECT loc.address || ' ' || loc.name
+                        FROM locations loc
+                        WHERE loc.entity_type = 'event' AND loc.entity_id = e.id
+                        LIMIT 1
+                    ), '')
+                    ) AS search_vector
+                FROM events e
+                JOIN posts p ON e.post_id = p.id
+                JOIN communities c ON p.community_id = c.id
+                JOIN locations l ON l.entity_type = 'event' AND l.entity_id = e.id
+                WHERE e.start_time >= NOW()
+                AND c.is_private = false
+                AND l.geom IS NOT NULL
+                AND ST_DWithin(l.geom, ST_SetSRID(ST_MakePoint($1, $2), 4326), $${paramCounter} / 69.0)
+            `;
+
+            params.push(radius);
+            paramCounter++;
+
+            // Add time range filter if provided
+            if (timeRange) {
+                if (timeRange === "24h") {
+                    sqlQuery += ` AND e.start_time <= NOW() + INTERVAL '1 day'`;
+                } else if (timeRange === "1w") {
+                    sqlQuery += ` AND e.start_time <= NOW() + INTERVAL '1 week'`;
+                } else if (timeRange === "1m") {
+                    sqlQuery += ` AND e.start_time <= NOW() + INTERVAL '1 month'`;
+                }
+            }
+
+            // Add community filter if provided
+            if (communityId) {
+                sqlQuery += ` AND p.community_id = $${paramCounter}`;
+                params.push(communityId);
+                paramCounter++;
+            }
+
+            // Simple text search with ILIKE for proximity search
+            if (query && query.trim() !== "") {
+                const searchTerm = `%${query.trim()}%`;
+                sqlQuery += `
+                    AND (
+                        e.title ILIKE $${paramCounter} OR 
+                        e.description ILIKE $${paramCounter} OR 
+                        c.name ILIKE $${paramCounter}
+                    )
+                `;
+                params.push(searchTerm);
+                paramCounter++;
+            }
+
+            // If there are tags, prepare a CTE for filtering by tags
+            let tagFilterQuery = "";
+            if (tags && tags.length > 0) {
+                tagFilterQuery = `
+                    , tagged_events AS (
+                        SELECT DISTINCT ed.id
+                        FROM event_data ed
+                        JOIN tag_assignments ta ON ta.entity_type = 'event' AND ta.entity_id = ed.id
+                        JOIN tags t ON t.id = ta.tag_id
+                        WHERE t.name IN (${tags
+                            .map((_, idx) => `$${paramCounter + idx}`)
+                            .join(", ")})
+                    )
+                `;
+
+                params.push(...tags);
+                paramCounter += tags.length;
+            }
+
+            // Close the event_data CTE and add tag filter if needed
+            sqlQuery += `
+                )
+                ${tagFilterQuery}
+                
+                SELECT ed.*, 
+                EXTRACT(EPOCH FROM (ed.start_time - NOW())) AS seconds_until_start
+                FROM event_data ed
+            `;
+
+            // Apply tag filter if needed
+            if (tags && tags.length > 0) {
+                sqlQuery += `
+                    JOIN tagged_events te ON ed.id = te.id
+                `;
+            }
+
+            // Add sort order
+            if (sortBy === "distance") {
+                sqlQuery += ` ORDER BY ed.distance_miles ASC, ed.start_time ASC`;
+            } else if (sortBy === "relevance" && query) {
+                // Simple relevance based on field priority + distance
+                const searchTerm = `%${query.trim()}%`;
+                sqlQuery += `
+                    ORDER BY
+                        CASE 
+                            WHEN ed.title ILIKE '${searchTerm}' THEN 1
+                            WHEN ed.description ILIKE '${searchTerm}' THEN 2
+                            WHEN ed.community_name ILIKE '${searchTerm}' THEN 3
+                            ELSE 4
+                        END ASC,
+                        ed.distance_miles ASC
+                `;
+            } else {
+                // Default to date sorting
+                sqlQuery += ` ORDER BY ed.start_time ASC`;
+            }
+
+            // Add pagination
+            sqlQuery += `
+                LIMIT $${paramCounter} OFFSET $${paramCounter + 1}
+            `;
+            params.push(limit, offset);
+
+            // Build simplified count query
+            let countQuery = `
+                SELECT COUNT(*)
+                FROM events e
+                JOIN posts p ON e.post_id = p.id
+                JOIN communities c ON p.community_id = c.id
+                JOIN locations l ON l.entity_type = 'event' AND l.entity_id = e.id
+                WHERE e.start_time >= NOW()
+                AND c.is_private = false
+                AND l.geom IS NOT NULL
+                AND ST_DWithin(l.geom, ST_SetSRID(ST_MakePoint($1, $2), 4326), $3 / 69.0)
+            `;
+
+            let countParams = [lng, lat, radius];
+            let countParamCounter = 4;
+
+            // Add same filters to count query
+            if (timeRange) {
+                if (timeRange === "24h") {
+                    countQuery += ` AND e.start_time <= NOW() + INTERVAL '1 day'`;
+                } else if (timeRange === "1w") {
+                    countQuery += ` AND e.start_time <= NOW() + INTERVAL '1 week'`;
+                } else if (timeRange === "1m") {
+                    countQuery += ` AND e.start_time <= NOW() + INTERVAL '1 month'`;
+                }
+            }
+
+            if (communityId) {
+                countQuery += ` AND p.community_id = $${countParamCounter}`;
+                countParams.push(communityId);
+                countParamCounter++;
+            }
+
+            if (query && query.trim() !== "") {
+                const searchTerm = `%${query.trim()}%`;
+                countQuery += `
+                    AND (
+                        e.title ILIKE $${countParamCounter} OR 
+                        e.description ILIKE $${countParamCounter} OR 
+                        c.name ILIKE $${countParamCounter}
+                    )
+                `;
+                countParams.push(searchTerm);
+                countParamCounter++;
+            }
+
+            if (tags && tags.length > 0) {
+                countQuery += `
+                    AND e.id IN (
+                        SELECT DISTINCT ta.entity_id
+                        FROM tag_assignments ta
+                        JOIN tags t ON t.id = ta.tag_id
+                        WHERE ta.entity_type = 'event' 
+                        AND t.name IN (${tags.map((_, idx) => `$${countParamCounter + idx}`).join(", ")})
+                    )
+                `;
+                countParams.push(...tags);
+            }
+
+            // Execute both queries
+            const [eventsResult, countResult] = await Promise.all([
+                db.query(sqlQuery, params),
+                db.query(countQuery, countParams),
+            ]);
+
+            // Format the results
+            const events = eventsResult.rows.map((row) =>
+                this._formatSearchResultWithLocation(row)
+            );
+            const totalCount = parseInt(countResult.rows[0].count);
+
+            return {
+                events,
+                pagination: {
+                    page: parseInt(page),
+                    limit: parseInt(limit),
+                    totalItems: totalCount,
+                    totalPages: Math.ceil(totalCount / limit),
+                },
+            };
+        } catch (error) {
+            throw new ApiError(`Error searching events with proximity: ${error.message}`, 500);
         }
     }
 
@@ -423,6 +869,55 @@ class EventSearchModel {
             // Return a safe empty string if anything goes wrong
             return "";
         }
+    }
+
+    _formatSearchResultWithLocation(row) {
+        // Calculate "starting in" text
+        let startingIn = null;
+        if (row.seconds_until_start) {
+            const secondsUntilStart = parseInt(row.seconds_until_start);
+            startingIn = this._formatTimeUntil(secondsUntilStart);
+        }
+
+        // Format date and time
+        const startDate = new Date(row.start_time);
+        const formattedDate = startDate.toLocaleDateString("en-US", {
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+        });
+
+        const formattedTime = startDate.toLocaleTimeString("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+        });
+
+        // Format distance
+        const distanceMiles = row.distance_miles ? parseFloat(row.distance_miles).toFixed(1) : null;
+
+        return {
+            id: row.id,
+            uniqueUrl: row.unique_url,
+            title: row.title,
+            description: row.description,
+            communityId: row.community_id,
+            communityName: row.community_name,
+            startTime: row.start_time,
+            endTime: row.end_time,
+            timezone: row.timezone,
+            formattedDate,
+            formattedTime,
+            startingIn,
+            coverImage: row.cover_image,
+            attendeeCount: parseInt(row.attendee_count) || 0,
+            attendanceStatus: row.attendance_status || null,
+            eventType: row.event_type,
+            isPastEvent: new Date(row.start_time) < new Date(),
+            tags: row.tags || [],
+            location: row.event_location,
+            distanceMiles: distanceMiles,
+        };
     }
 
     _formatSearchResult(row) {
