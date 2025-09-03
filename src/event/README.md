@@ -691,39 +691,54 @@ Mark actual attendance for users at an event.
 
 ### 11. Search Events
 
-Search for events across communities with various filters.
+Search for events across communities with various filters. Only searches events from **public communities**.
+
+**Key Features:**
+- **Text Search**: Case-insensitive, partial matching (e.g., "tech" matches "Technology Meetup")
+- **Proximity Search**: Find events within specified radius using latitude/longitude
+- **Combined Search**: Mix text search with location filtering
+- **Smart Sorting**: Relevance (text priority), date (chronological), or distance (closest first)
+- **Advanced Filtering**: Time ranges, community-specific, tag-based filtering
 
 **Endpoint:** `GET /event-search/search`  
 **Authentication:** Optional
 
 **Query Parameters:**
 
-- `query` (optional) - Search term for title/description (minimum 2 characters)
-- `communityId` (optional) - Filter by specific community
-- `eventType` (optional) - Filter by event type: physical, online, hybrid
-- `timeRange` (optional) - Time filter: upcoming, this_week, this_month, past
-- `tags` (optional) - Comma-separated list of tags
-- `lat` (optional) - Latitude for proximity search
-- `lng` (optional) - Longitude for proximity search  
-- `radius` (optional) - Search radius in miles (default: 25)
-- `limit` (optional) - Number of results (1-100, default: 20)
-- `offset` (optional) - Pagination offset (default: 0)
-- `sort` (optional) - Sort by: relevance, date, popularity (default: relevance)
+- `query` (optional) - Search term for title/description/community name (case-insensitive, partial match)
+- `communityId` (optional) - Filter by specific community ID
+- `timeRange` (optional) - Time filter: `24h`, `1w`, `1m` (default: all upcoming events)
+- `tags` (optional) - Comma-separated list of tag names (e.g., `technology,programming`)
+- `lat` (optional) - Latitude for proximity search (requires `lng`)
+- `lng` (optional) - Longitude for proximity search (requires `lat`)
+- `radius` (optional) - Search radius in miles (default: 25, used with lat/lng)
+- `page` (optional) - Page number for pagination (default: 1)
+- `limit` (optional) - Number of results per page (1-100, default: 10)
+- `sortBy` (optional) - Sort by: `relevance`, `date`, `distance` (default: `date`, `distance` for proximity search)
 
 **Examples:**
 
 ```
-# Text search
-GET /event-search/search?query=tech meetup&limit=10
+# Text search (case-insensitive, partial match)
+GET /event-search/search?query=tech&sortBy=relevance&limit=10
 
-# Filter by community and time
-GET /event-search/search?communityId=6&timeRange=upcoming
+# Filter by time range
+GET /event-search/search?timeRange=24h&sortBy=date
 
-# Proximity search
-GET /event-search/search?lat=37.7749&lng=-122.4194&radius=10
+# Filter by community
+GET /event-search/search?communityId=6&limit=5
 
-# Combined search with tags
-GET /event-search/search?query=AI&tags=technology,programming&sort=date
+# Proximity search (within 10 miles of San Francisco)
+GET /event-search/search?lat=37.7749&lng=-122.4194&radius=10&sortBy=distance
+
+# Combined text + proximity search
+GET /event-search/search?lat=37.7749&lng=-122.4194&radius=25&query=tech&sortBy=relevance
+
+# Search with tags
+GET /event-search/search?tags=technology,programming&sortBy=date
+
+# Complex search: text + location + tags + time filter
+GET /event-search/search?query=AI&lat=37.7749&lng=-122.4194&radius=50&tags=technology&timeRange=1w&sortBy=distance
 ```
 
 **Response:**
@@ -735,32 +750,43 @@ GET /event-search/search?query=AI&tags=technology,programming&sort=date
         "events": [
             {
                 "id": 15,
+                "uniqueUrl": "tech-meetup-ai-machine-learning-1725724800000",
                 "title": "Tech Meetup: AI & Machine Learning",
-                "description": "Join us for an exciting discussion...",
-                "eventType": "physical",
+                "description": "Join us for an exciting discussion on the latest trends in AI and ML...",
+                "communityId": 6,
+                "communityName": "Tech Enthusiasts Hub", 
                 "startTime": "2025-09-15T18:00:00.000Z",
-                "maxAttendees": 50,
+                "endTime": "2025-09-15T20:00:00.000Z",
+                "timezone": "America/New_York",
+                "formattedDate": "September 15, 2025",
+                "formattedTime": "02:00 PM",
+                "startingIn": "5 days, 2 hours",
+                "eventType": "physical",
                 "attendeeCount": 12,
-                "community": {
-                    "id": 6,
-                    "name": "Tech Enthusiasts Hub",
-                    "uniqueUrl": "tech-enthusiasts-hub"
-                },
+                "isPastEvent": false,
                 "coverImage": {
-                    /* image object */
+                    "id": 8,
+                    "entityType": "event", 
+                    "entityId": 15,
+                    "imageType": "cover",
+                    "provider": "s3",
+                    "key": "events/15/cover-image.jpg",
+                    "altText": null,
+                    "createdAt": "2025-08-27T18:00:00.000Z"
                 },
-                "location": {
-                    /* location object */
-                },
-                "tags": ["technology", "AI", "machine-learning"],
-                "createdAt": "2025-08-27T18:00:00.000Z"
+                "tags": [
+                    {"id": 1, "name": "technology"}, 
+                    {"id": 2, "name": "AI"}
+                ],
+                "attendanceStatus": null,
+                "distanceMiles": "2.5"  // Only in proximity search results
             }
         ],
         "pagination": {
-            "total": 8,
-            "limit": 20,
-            "offset": 0,
-            "hasMore": false
+            "page": 1,
+            "limit": 10,
+            "totalItems": 8,
+            "totalPages": 1
         }
     }
 }
