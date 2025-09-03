@@ -561,6 +561,11 @@ class EventModel {
             // 1. Get the current event to verify it exists
             const event = await this.getEventById(eventId);
 
+            // 1.5. Handle maxAttendees capacity logic if being updated
+            if (eventData && eventData.maxAttendees !== undefined) {
+                await this._handleMaxAttendeesUpdate(eventId, event.maxAttendees, eventData.maxAttendees, operations);
+            }
+
             // 2. Update the event record
             if (eventData && Object.keys(eventData).length > 0) {
                 const updateFields = [];
@@ -1131,6 +1136,75 @@ class EventModel {
             };
         } catch (error) {
             throw new ApiError(`Error fetching user events: ${error.message}`, 500);
+        }
+    }
+
+    async _handleMaxAttendeesUpdate(eventId, currentMaxAttendees, newMaxAttendees, operations) {
+        try {
+            // Get current attendance counts
+            const attendanceQuery = `
+                SELECT 
+                    COUNT(CASE WHEN status = 'attending' THEN 1 END) as current_attendees,
+                    COUNT(CASE WHEN status = 'waitlisted' THEN 1 END) as waitlist_count
+                FROM event_attendees
+                WHERE event_id = $1;
+            `;
+
+            const attendanceResult = await db.query(attendanceQuery, [eventId]);
+            const { current_attendees, waitlist_count } = attendanceResult.rows[0];
+            const currentAttendees = parseInt(current_attendees);
+            const waitlistCount = parseInt(waitlist_count);
+
+            // Scenario 2: Block reducing maxAttendees below current attendees
+            if (newMaxAttendees < currentAttendees) {
+                throw new ApiError(
+                    `Cannot reduce max attendees to ${newMaxAttendees}. There are currently ${currentAttendees} confirmed attendees.`,
+                    400
+                );
+            }
+
+            // Scenario 1: Promote waitlisted users when capacity increases
+            if (newMaxAttendees > (currentMaxAttendees || 0) && waitlistCount > 0) {
+                const availableSpots = newMaxAttendees - currentAttendees;
+                const usersToPromote = Math.min(availableSpots, waitlistCount);
+
+                if (usersToPromote > 0) {
+                    // Promote the first N waitlisted users (ordered by join date)
+                    const promoteQuery = {
+                        text: `
+                            UPDATE event_attendees
+                            SET status = 'attending', updated_at = NOW()
+                            WHERE event_id = $1 AND status = 'waitlisted'
+                            AND id IN (
+                                SELECT id FROM event_attendees
+                                WHERE event_id = $1 AND status = 'waitlisted'
+                                ORDER BY created_at ASC
+                                LIMIT $2
+                            )
+                            RETURNING user_id;
+                        `,
+                        values: [eventId, usersToPromote]
+                    };
+
+                    // Update the current_attendees count on the events table
+                    const updateEventCountQuery = {
+                        text: `
+                            UPDATE events
+                            SET current_attendees = current_attendees + $2, updated_at = NOW()
+                            WHERE id = $1
+                            RETURNING current_attendees;
+                        `,
+                        values: [eventId, usersToPromote]
+                    };
+
+                    operations.push(promoteQuery);
+                    operations.push(updateEventCountQuery);
+                }
+            }
+
+        } catch (error) {
+            if (error instanceof ApiError) throw error;
+            throw new ApiError(`Error handling maxAttendees update: ${error.message}`, 500);
         }
     }
 }

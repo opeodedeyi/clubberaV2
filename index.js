@@ -76,7 +76,7 @@ app.use("/api/community-admin", communityAdminRoutes);
 // app.use("/api/posts", pollRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/events", attendanceRoutes);
-app.use("/api/events", eventSearchRoutes);
+app.use("/api/event-search", eventSearchRoutes);
 // app.use("/api/help", helpTopicRoutes);
 // app.use("/api/help", helpEntryRoutes);
 // app.use("/api/help", helpSearchRoutes);
