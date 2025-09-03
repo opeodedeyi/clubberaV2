@@ -349,4 +349,184 @@ describe("UserCommunitiesController", () => {
             );
         });
     });
+
+    describe("getMyUserCommunities", () => {
+        beforeEach(() => {
+            req = {
+                user: {
+                    id: 123,
+                    email: "user@example.com",
+                    fullName: "John Doe"
+                },
+                query: {
+                    limit: "20",
+                    offset: "0",
+                    sort: "role",
+                    search: "",
+                },
+            };
+        });
+
+        it("should get communities for authenticated user", async () => {
+            await userCommunitiesController.getMyUserCommunities(req, res, next);
+
+            expect(
+                userCommunitiesModel.getUserCommunities
+            ).toHaveBeenCalledWith(
+                123, // Should use user ID from req.user
+                expect.objectContaining({
+                    limit: 20,
+                    offset: 0,
+                    sortBy: "role",
+                    search: "",
+                })
+            );
+
+            expect(
+                userCommunitiesModel.countUserCommunities
+            ).toHaveBeenCalledWith(
+                123,
+                expect.objectContaining({
+                    search: "",
+                })
+            );
+
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    status: "success",
+                    data: expect.arrayContaining([
+                        expect.objectContaining({
+                            id: 1,
+                            name: "Tech Community",
+                            uniqueUrl: "tech-community",
+                            isAdmin: true,
+                        }),
+                        expect.objectContaining({
+                            id: 2,
+                            name: "Art Community",
+                            uniqueUrl: "art-community",
+                            isAdmin: false,
+                        }),
+                    ]),
+                    pagination: expect.objectContaining({
+                        total: 2,
+                        limit: 20,
+                        offset: 0,
+                        hasMore: false,
+                    }),
+                })
+            );
+        });
+
+        it("should handle sort by joined date for authenticated user", async () => {
+            req.query.sort = "joined";
+
+            await userCommunitiesController.getMyUserCommunities(req, res, next);
+
+            expect(
+                userCommunitiesModel.getUserCommunities
+            ).toHaveBeenCalledWith(
+                123,
+                expect.objectContaining({
+                    sortBy: "joined",
+                })
+            );
+        });
+
+        it("should handle search parameter for authenticated user", async () => {
+            req.query.search = "tech";
+
+            await userCommunitiesController.getMyUserCommunities(req, res, next);
+
+            expect(
+                userCommunitiesModel.getUserCommunities
+            ).toHaveBeenCalledWith(
+                123,
+                expect.objectContaining({
+                    search: "tech",
+                })
+            );
+            expect(
+                userCommunitiesModel.countUserCommunities
+            ).toHaveBeenCalledWith(
+                123,
+                expect.objectContaining({
+                    search: "tech",
+                })
+            );
+        });
+
+        it("should handle pagination for authenticated user", async () => {
+            req.query.limit = "10";
+            req.query.offset = "20";
+            userCommunitiesModel.countUserCommunities.mockResolvedValue(50);
+
+            await userCommunitiesController.getMyUserCommunities(req, res, next);
+
+            expect(
+                userCommunitiesModel.getUserCommunities
+            ).toHaveBeenCalledWith(
+                123,
+                expect.objectContaining({
+                    limit: 10,
+                    offset: 20,
+                })
+            );
+
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    pagination: expect.objectContaining({
+                        total: 50,
+                        limit: 10,
+                        offset: 20,
+                        hasMore: true,
+                    }),
+                })
+            );
+        });
+
+        it("should handle empty result for authenticated user", async () => {
+            userCommunitiesModel.getUserCommunities.mockResolvedValue([]);
+            userCommunitiesModel.countUserCommunities.mockResolvedValue(0);
+
+            await userCommunitiesController.getMyUserCommunities(req, res, next);
+
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    status: "success",
+                    data: [],
+                    pagination: expect.objectContaining({
+                        total: 0,
+                        hasMore: false,
+                    }),
+                })
+            );
+        });
+
+        it("should handle database errors for authenticated user", async () => {
+            const dbError = new Error("Database error");
+            userCommunitiesModel.getUserCommunities.mockRejectedValue(dbError);
+
+            await userCommunitiesController.getMyUserCommunities(req, res, next);
+
+            expect(next).toHaveBeenCalledWith(dbError);
+            expect(res.json).not.toHaveBeenCalled();
+        });
+
+        it("should handle invalid sort parameter for authenticated user", async () => {
+            req.query.sort = "invalid";
+
+            await userCommunitiesController.getMyUserCommunities(req, res, next);
+
+            // Should default to 'role'
+            expect(
+                userCommunitiesModel.getUserCommunities
+            ).toHaveBeenCalledWith(
+                123,
+                expect.objectContaining({
+                    sortBy: "role",
+                })
+            );
+        });
+    });
 });

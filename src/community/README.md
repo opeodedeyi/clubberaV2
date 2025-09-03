@@ -200,22 +200,37 @@ GET /communities/6/permissions
 
 ### 4. Search Communities
 
-Search for communities by name, description, or tags.
+Search for communities by name, description, tags, or proximity to a location.
 
 **Endpoint:** `GET /community-search/search`  
 **Authentication:** Optional (affects private community visibility)
 
 **Query Parameters:**
 
--   `query` (required) - Search term (minimum 2 characters)
+-   `query` (optional) - Search term (minimum 2 characters)
+-   `lat` (optional) - Latitude for proximity search (-90 to 90)
+-   `lng` (optional) - Longitude for proximity search (-180 to 180)
+-   `radius` (optional) - Search radius in miles (0.1 to 500, default: 25)
 -   `limit` (optional) - Number of results (1-100, default: 20)
 -   `offset` (optional) - Pagination offset (default: 0)
+
+**Search Requirements:**
+- Either `query` OR coordinates (`lat` & `lng`) must be provided
+- If using proximity search, both `lat` and `lng` must be provided together
+- Can combine text search with proximity for filtered location-based results
 
 **Example URLs:**
 
 ```
+# Text search only
 GET /community-search/search?query=tech
 GET /community-search/search?query=programming&limit=10&offset=0
+
+# Proximity search only
+GET /community-search/search?lat=37.7749&lng=-122.4194&radius=10
+
+# Combined text + proximity search
+GET /community-search/search?query=tech&lat=37.7749&lng=-122.4194&radius=25
 ```
 
 **Response:**
@@ -566,6 +581,121 @@ Get list of communities a user belongs to.
 GET /users/john@example.com/communities?limit=10&sort=joined&search=tech
 ```
 
+### 24. Get My Communities (Token-based)
+
+Get list of communities the authenticated user belongs to.
+
+**Endpoint:** `GET /users/my/communities`  
+**Authentication:** Required (JWT token)
+
+**Query Parameters:**
+
+-   `limit` (optional) - Number of results (1-100, default: 20)
+-   `offset` (optional) - Pagination offset (default: 0)
+-   `sort` (optional) - Sort by: role, joined (default: role)
+-   `search` (optional) - Search community names
+
+**Example:**
+
+```
+GET /users/my/communities?limit=10&sort=joined&search=tech
+```
+
+**Response:** (Same format as Get User Communities)
+
+---
+
+### 25. Get Community Recommendations
+
+Get community recommendations - personalized for authenticated users, popular communities for visitors.
+
+**Endpoint:** `GET /api/recommendations/communities`  
+**Authentication:** Optional (personalized if authenticated, popular if not)
+
+**Query Parameters:**
+
+-   `limit` (optional) - Number of recommendations to return (1-20, default: 6)
+
+**Examples:**
+
+```bash
+# Authenticated user - personalized recommendations
+GET /api/recommendations/communities?limit=8
+Authorization: Bearer <jwt_token>
+
+# Non-authenticated user - popular communities
+GET /api/recommendations/communities?limit=6
+```
+
+**Response:**
+
+```json
+{
+    "status": "success",
+    "data": [
+        {
+            "id": 1,
+            "name": "Tech Enthusiasts Hub",
+            "uniqueUrl": "tech-enthusiasts-hub",
+            "tagline": "A community for technology lovers",
+            "description": "Welcome to our tech community...",
+            "isPrivate": false,
+            "memberCount": 1250,
+            "profileImage": {
+                "provider": "s3",
+                "key": "communities/1/profile.jpg",
+                "alt_text": "Tech Hub Logo"
+            },
+            "coverImage": null,
+            "tags": ["technology", "programming", "innovation"],
+            "location": {
+                "name": "San Francisco",
+                "lat": 37.7749,
+                "lng": -122.4194,
+                "address": "San Francisco, CA"
+            },
+            "createdAt": "2025-08-08T16:25:11.511Z",
+            "recommendationReason": "Based on your interests",
+            "relevanceScore": 5
+        }
+    ],
+    "meta": {
+        "total": 6,
+        "requested": 6,
+        "userId": 123,
+        "isAuthenticated": true,
+        "message": "Recommendations based on your interests and activity",
+        "strategiesUsed": ["interest", "geographic", "trending"],
+        "generatedAt": "2025-08-27T10:30:00Z"
+    }
+}
+```
+
+**Behavior:**
+
+**For Authenticated Users:**
+- **Personalized recommendations** using multiple strategies
+- **Smart messages** explaining recommendation reasons
+- **Strategy tracking** showing which methods were used
+
+**For Non-Authenticated Users:**
+- **Popular communities** with high member counts and activity
+- **Encouragement to sign up** for personalized recommendations
+- **No private communities** in results
+
+**Recommendation Strategies (Authenticated Users):**
+1. **Interest Matching** - Communities matching user's interests and skills
+2. **Geographic Proximity** - Nearby communities (if location available) 
+3. **Collaborative Filtering** - Communities joined by users with similar interests
+4. **Trending Communities** - Active and popular communities
+5. **Random Discovery** - Fallback for diversity and new user experience
+
+**Smart Messages:**
+- "Recommendations based on your interests and activity" (full personalized results)
+- "Found 3 communities. Add more interests to your profile for additional recommendations." (partial results)
+- "You're already a member of all available communities! 🎉" (no available communities)
+- "Popular communities to explore. Sign up for personalized recommendations!" (non-authenticated)
+
 ---
 
 ## Error Responses
@@ -601,6 +731,15 @@ All endpoints return errors in the following format:
 -   **location.lat**: -90 to 90
 -   **location.lng**: -180 to 180
 -   **tags**: array of strings, each 1-50 characters, alphanumeric with spaces and hyphens
+
+### Community Search
+
+-   **query**: minimum 2 characters (optional if coordinates provided)
+-   **lat**: latitude between -90 and 90 (required with lng for proximity search)
+-   **lng**: longitude between -180 and 180 (required with lat for proximity search)
+-   **radius**: between 0.1 and 500 miles (default: 25)
+-   **limit**: between 1 and 100 (default: 20)
+-   **offset**: non-negative integer (default: 0)
 
 ### Images
 

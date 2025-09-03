@@ -5,7 +5,7 @@ const AttendanceModel = require("../models/attendance.model");
 class EventSearchController {
     async searchEvents(req, res, next) {
         try {
-            const { query, timeRange, tags, page, limit, communityId } =
+            const { query, timeRange, tags, page, limit, communityId, lat, lng, radius } =
                 req.query;
 
             const sortBy = Array.isArray(req.query.sortBy)
@@ -23,24 +23,42 @@ class EventSearchController {
                 }
             }
 
-            // Set up search options
-            const options = {
-                query: query || "",
-                page: page ? parseInt(page) : 1,
-                limit: limit ? parseInt(limit) : 10,
-                timeRange: ["24h", "1w", "1m"].includes(timeRange)
-                    ? timeRange
-                    : null,
-                tags: parsedTags,
-                sortBy: sortBy === "relevance" ? "relevance" : "date",
-                communityId: communityId ? parseInt(communityId) : null,
-            };
-
             // Get user ID if authenticated
             const userId = req.user ? req.user.id : null;
 
-            // Search for events
-            const result = await EventSearchModel.searchEvents(options);
+            let result;
+
+            // Check if location parameters are provided for proximity search
+            if (lat && lng) {
+                // Use proximity search
+                const proximityOptions = {
+                    query: query || "",
+                    lat: parseFloat(lat),
+                    lng: parseFloat(lng),
+                    radius: radius ? parseFloat(radius) : 25,
+                    page: page ? parseInt(page) : 1,
+                    limit: limit ? parseInt(limit) : 10,
+                    timeRange: ["24h", "1w", "1m"].includes(timeRange) ? timeRange : null,
+                    tags: parsedTags,
+                    sortBy: ["distance", "relevance", "date"].includes(sortBy) ? sortBy : "distance",
+                    communityId: communityId ? parseInt(communityId) : null,
+                };
+
+                result = await EventSearchModel.searchEventsWithProximity(proximityOptions);
+            } else {
+                // Use regular text search
+                const options = {
+                    query: query || "",
+                    page: page ? parseInt(page) : 1,
+                    limit: limit ? parseInt(limit) : 10,
+                    timeRange: ["24h", "1w", "1m"].includes(timeRange) ? timeRange : null,
+                    tags: parsedTags,
+                    sortBy: sortBy === "relevance" ? "relevance" : "date",
+                    communityId: communityId ? parseInt(communityId) : null,
+                };
+
+                result = await EventSearchModel.searchEvents(options);
+            }
 
             // If user is logged in, get attendance status for each event
             if (userId) {

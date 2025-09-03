@@ -445,22 +445,18 @@ class AttendanceModel {
                 };
             }
 
-            // Check if user is a member of the community
-            const membershipQuery = `
-                SELECT role
-                FROM community_members
-                WHERE community_id = $1 AND user_id = $2;
-            `;
-
-            const membershipResult = await db.query(membershipQuery, [
+            // Handle membership using specialized model
+            const CommunityMembershipModel = require("./communityMembership.model");
+            const membershipResult = await CommunityMembershipModel.handleMembershipForEventAttendance(
                 event.community_id,
-                userId,
-            ]);
+                userId
+            );
 
-            if (membershipResult.rows.length === 0) {
+            if (!membershipResult.isMember) {
                 return {
                     canAttend: false,
-                    reason: "You must be a member of the community to attend this event",
+                    reason: membershipResult.reason,
+                    actionTaken: membershipResult.actionTaken
                 };
             }
 
