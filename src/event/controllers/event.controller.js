@@ -164,6 +164,15 @@ class EventController {
                 throw new ApiError(canManage.reason, 403);
             }
 
+            // Get the current event to check if it has already started
+            const currentEvent = await EventModel.getEventById(parseInt(eventId));
+            const eventStartTime = new Date(currentEvent.startTime);
+            const now = new Date();
+
+            if (eventStartTime <= now) {
+                throw new ApiError("Cannot update an event that has already started", 400);
+            }
+
             // Extract data from request body - only allow editing specific fields
             const {
                 title,
