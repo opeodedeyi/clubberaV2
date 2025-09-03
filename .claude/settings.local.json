@@ -1,7 +1,15 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm test:*)"
+      "Bash(npm test:*)",
+      "Bash(npm run lint)",
+      "Bash(npx eslint:*)",
+      "Bash(npm start)",
+      "Bash(npm run test:events:unit:*)",
+      "Bash(npm run test:events:integration:*)",
+      "Bash(npx jest:*)",
+      "Bash(node:*)",
+      "Bash(npm run test:events:api:*)"
     ],
     "deny": [],
     "ask": []

@@ -3,12 +3,14 @@ const express = require("express");
 const router = express.Router();
 const EventController = require("../controllers/event.controller");
 const { authenticate } = require("../../middleware/auth");
+const optionalAuth = require("../../middleware/optionalAuth");
 const { verifyEmail } = require("../../middleware/verifyEmail");
 const {
     validateEventId,
     validateCreateEvent,
     validateUpdateEvent,
     validateCommunityEventsQuery,
+    validateUserEventsQuery,
 } = require("../validators/event.validator");
 
 // Create a new event in a community
@@ -27,8 +29,16 @@ router.get(
     EventController.getCommunityEvents
 );
 
+// Get logged-in user's events (put before /:eventId to avoid conflicts)
+router.get(
+    "/user/my-events",
+    authenticate,
+    validateUserEventsQuery,
+    EventController.getUserEvents
+);
+
 // Get a specific event
-router.get("/:eventId", validateEventId, EventController.getEvent);
+router.get("/:eventId", optionalAuth, validateEventId, EventController.getEvent);
 
 // Update an event
 router.put(

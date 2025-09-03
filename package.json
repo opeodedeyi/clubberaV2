@@ -8,7 +8,14 @@
     "dev": "nodemon index.js",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "test:unit": "jest --testPathIgnorePatterns=integration",
+    "test:integration": "jest --testNamePattern=integration",
+    "test:events": "jest --testPathPattern=event",
+    "test:events:unit": "jest --testPathPattern=event --testPathIgnorePatterns=integration",
+    "test:events:integration": "jest src/event/tests/*.integration.test.js",
+    "test:events:api": "jest src/event/tests/event.api.integration.test.js",
+    "test:events:coverage": "jest --testPathPattern=event --coverage"
   },
   "author": "",
   "license": "ISC",

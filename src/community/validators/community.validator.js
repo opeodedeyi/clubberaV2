@@ -46,6 +46,19 @@ exports.createCommunity = [
         .optional()
         .isFloat({ min: -180, max: 180 })
         .withMessage("Longitude must be between -180 and 180"),
+    body("timezone")
+        .optional()
+        .isString()
+        .withMessage("Timezone must be a valid string")
+        .custom((value) => {
+            if (!value) return true; // Allow empty/null
+            try {
+                Intl.DateTimeFormat(undefined, { timeZone: value });
+                return true;
+            } catch {
+                throw new Error("Invalid timezone - must be a valid IANA timezone identifier");
+            }
+        }),
     body("tags")
         .optional()
         .isArray()

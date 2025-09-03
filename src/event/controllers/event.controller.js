@@ -1,12 +1,37 @@
 // src/event/controllers/event.controller.js
 const EventModel = require("../models/event.model");
 const ApiError = require("../../utils/ApiError");
+const TimezoneHelper = require("../../utils/timezone.helper");
+const CommunityPermissions = require("../../utils/community-permissions");
 
 class EventController {
     async createEvent(req, res, next) {
         try {
             const userId = req.user.id;
-            const { communityId } = req.params;
+            const { communityId: communityIdentifier } = req.params;
+
+            // Resolve community identifier - handle both numeric IDs and unique URLs
+            let communityId;
+            if (!isNaN(communityIdentifier)) {
+                // It's a numeric ID, use it directly
+                communityId = parseInt(communityIdentifier);
+            } else {
+                // It's a unique URL, resolve it to get the ID
+                const CommunityModel = require("../../community/models/community.model");
+                const community = await CommunityModel.findByIdentifier(communityIdentifier);
+                
+                if (!community) {
+                    throw new ApiError("Community not found", 404);
+                }
+                
+                communityId = community.id;
+            }
+
+            // Check user's authorization to create events in this community
+            const canCreateEvent = await CommunityPermissions.canCreateEvents(userId, communityId);
+            if (!canCreateEvent.allowed) {
+                throw new ApiError(canCreateEvent.reason, 403);
+            }
 
             // Extract data from request body
             const {
@@ -21,15 +46,35 @@ class EventController {
                 maxAttendees,
                 isSupportersOnly,
                 location,
-                coverImageKey,
+                coverImage,
             } = req.body;
 
             // Prepare post data
             const postData = {
-                communityId: parseInt(communityId),
+                communityId: communityId,
                 content: content || "",
                 isSupportersOnly: isSupportersOnly || false,
             };
+
+            // Validate timezone if provided
+            if (timezone && !TimezoneHelper.isValidTimezone(timezone)) {
+                throw new ApiError("Invalid timezone provided", 400);
+            }
+
+            // Validate time format - should not include timezone info since we handle conversion
+            if (startTime && /[Z]|[+-]\d{2}:?\d{2}$/.test(startTime)) {
+                throw new ApiError(
+                    "startTime should be in local time format (YYYY-MM-DDTHH:mm:ss) without timezone offset. Provide timezone separately.",
+                    400
+                );
+            }
+
+            if (endTime && /[Z]|[+-]\d{2}:?\d{2}$/.test(endTime)) {
+                throw new ApiError(
+                    "endTime should be in local time format (YYYY-MM-DDTHH:mm:ss) without timezone offset. Provide timezone separately.",
+                    400
+                );
+            }
 
             // Prepare event data
             const eventData = {
@@ -38,36 +83,41 @@ class EventController {
                 eventType,
                 startTime,
                 endTime,
-                timezone,
+                timezone: timezone || "UTC",
                 locationDetails,
                 maxAttendees,
             };
 
             // Create the event
-            const event = await EventModel.createEvent(
+            const result = await EventModel.createEvent(
                 eventData,
                 postData,
                 userId,
                 location
             );
 
-            // If cover image key is provided, save the image
-            if (coverImageKey) {
+            // If cover image is provided, save the image
+            let coverImageData = null;
+            if (coverImage && coverImage.key && coverImage.key.trim().length > 0) {
                 const ImageModel = require("../models/image.model");
-                await ImageModel.transferTempImageToEvent(
-                    event.id,
-                    coverImageKey,
-                    "cover"
-                );
+                coverImageData = await ImageModel.create({
+                    entity_id: result.event.id,
+                    entity_type: "event",
+                    image_type: "cover",
+                    provider: coverImage.provider || "s3",
+                    key: coverImage.key,
+                    alt_text: coverImage.alt_text || null,
+                });
             }
 
             // Get the complete event with cover image
-            const completeEvent = await EventModel.getEventById(event.id);
+            const completeEvent = await EventModel.getEventById(result.event.id);
 
             res.status(201).json({
                 status: "success",
                 data: {
                     event: completeEvent,
+                    creatorAttendance: result.creatorAttendance
                 },
             });
         } catch (error) {
@@ -78,22 +128,24 @@ class EventController {
     async getEvent(req, res, next) {
         try {
             const { eventId } = req.params;
-            // const userId = req.user.id;
+            const userId = req.user?.id || null; // Get user ID if authenticated
 
-            // // Check if user can manage this event
-            // const canManage = await EventModel.canManageEvent(
-            //     parseInt(eventId),
-            //     userId
-            // );
+            const result = await EventModel.getEventWithUserContext(parseInt(eventId), userId);
 
-            const event = await EventModel.getEventById(parseInt(eventId));
+            // If user cannot access the event (private community)
+            if (!result.canAccess) {
+                return res.status(403).json({
+                    status: "error",
+                    message: result.reason,
+                    data: {
+                        community: result.community
+                    }
+                });
+            }
 
             res.status(200).json({
                 status: "success",
-                data: {
-                    event,
-                    // canManage
-                },
+                data: result
             });
         } catch (error) {
             next(error);
@@ -106,45 +158,51 @@ class EventController {
             const userId = req.user.id;
 
             // Check if user can manage this event
-            const canManage = await EventModel.canManageEvent(
-                parseInt(eventId),
-                userId
-            );
+            const canManage = await CommunityPermissions.canManageEvent(userId, parseInt(eventId));
 
-            if (!canManage) {
-                throw new ApiError(
-                    "You do not have permission to update this event",
-                    403
-                );
+            if (!canManage.allowed) {
+                throw new ApiError(canManage.reason, 403);
             }
 
-            // Extract data from request body
+            // Extract data from request body - only allow editing specific fields
             const {
                 title,
                 description,
-                content,
-                eventType,
                 startTime,
                 endTime,
                 timezone,
                 locationDetails,
                 maxAttendees,
-                isSupportersOnly,
                 location,
-                coverImageKey,
+                coverImage,
             } = req.body;
 
-            // Prepare post data
-            const postData = {};
-            if (content !== undefined) postData.content = content;
-            if (isSupportersOnly !== undefined)
-                postData.isSupportersOnly = isSupportersOnly;
+            // Note: content, eventType, and isSupportersOnly are not editable after creation
+
+            // Validate timezone if provided
+            if (timezone !== undefined && timezone && !TimezoneHelper.isValidTimezone(timezone)) {
+                throw new ApiError("Invalid timezone provided", 400);
+            }
+
+            // Validate time format - should not include timezone info since we handle conversion
+            if (startTime !== undefined && startTime && /[Z]|[+-]\d{2}:?\d{2}$/.test(startTime)) {
+                throw new ApiError(
+                    "startTime should be in local time format (YYYY-MM-DDTHH:mm:ss) without timezone offset. Provide timezone separately.",
+                    400
+                );
+            }
+
+            if (endTime !== undefined && endTime && /[Z]|[+-]\d{2}:?\d{2}$/.test(endTime)) {
+                throw new ApiError(
+                    "endTime should be in local time format (YYYY-MM-DDTHH:mm:ss) without timezone offset. Provide timezone separately.",
+                    400
+                );
+            }
 
             // Prepare event data
             const eventData = {};
             if (title !== undefined) eventData.title = title;
             if (description !== undefined) eventData.description = description;
-            if (eventType !== undefined) eventData.eventType = eventType;
             if (startTime !== undefined) eventData.startTime = startTime;
             if (endTime !== undefined) eventData.endTime = endTime;
             if (timezone !== undefined) eventData.timezone = timezone;
@@ -157,18 +215,22 @@ class EventController {
             const updatedEvent = await EventModel.updateEvent(
                 parseInt(eventId),
                 eventData,
-                Object.keys(postData).length > 0 ? postData : null,
+                null, // No post data updates allowed
                 location
             );
 
-            // If cover image key is provided, save the image
-            if (coverImageKey) {
+            // If cover image is provided, save the image
+            let coverImageData = null;
+            if (coverImage && coverImage.key && coverImage.key.trim().length > 0) {
                 const ImageModel = require("../models/image.model");
-                await ImageModel.transferTempImageToEvent(
-                    updatedEvent.id,
-                    coverImageKey,
-                    "cover"
-                );
+                coverImageData = await ImageModel.create({
+                    entity_id: updatedEvent.id,
+                    entity_type: "event",
+                    image_type: "cover",
+                    provider: coverImage.provider || "s3",
+                    key: coverImage.key,
+                    alt_text: coverImage.alt_text || null,
+                });
             }
 
             // Get the complete event with cover image
@@ -193,16 +255,10 @@ class EventController {
             const userId = req.user.id;
 
             // Check if user can manage this event
-            const canManage = await EventModel.canManageEvent(
-                parseInt(eventId),
-                userId
-            );
+            const canManage = await CommunityPermissions.canManageEvent(userId, parseInt(eventId));
 
-            if (!canManage) {
-                throw new ApiError(
-                    "You do not have permission to delete this event",
-                    403
-                );
+            if (!canManage.allowed) {
+                throw new ApiError(canManage.reason, 403);
             }
 
             await EventModel.deleteEvent(parseInt(eventId));
@@ -218,7 +274,25 @@ class EventController {
 
     async getCommunityEvents(req, res, next) {
         try {
-            const { communityId } = req.params;
+            const { communityId: communityIdentifier } = req.params;
+            
+            // Resolve community identifier - handle both numeric IDs and unique URLs
+            let communityId;
+            if (!isNaN(communityIdentifier)) {
+                // It's a numeric ID, use it directly
+                communityId = parseInt(communityIdentifier);
+            } else {
+                // It's a unique URL, resolve it to get the ID
+                const CommunityModel = require("../../community/models/community.model");
+                const community = await CommunityModel.findByIdentifier(communityIdentifier);
+                
+                if (!community) {
+                    throw new ApiError("Community not found", 404);
+                }
+                
+                communityId = community.id;
+            }
+            
             const {
                 page,
                 limit,
@@ -243,7 +317,7 @@ class EventController {
             };
 
             const result = await EventModel.getCommunityEvents(
-                parseInt(communityId),
+                communityId,
                 options
             );
 
@@ -258,6 +332,46 @@ class EventController {
             next(error);
         }
     }
+
+    async getUserEvents(req, res, next) {
+        try {
+            const userId = req.user.id;
+
+            const {
+                page,
+                limit,
+                upcoming,
+                pastEvents,
+                startDate,
+                endDate,
+                timezone,
+            } = req.query;
+
+            // Prepare options
+            const options = {
+                page: page ? parseInt(page) : undefined,
+                limit: limit ? parseInt(limit) : undefined,
+                upcoming: upcoming, // Already converted by validator
+                pastEvents: pastEvents, // Already converted by validator
+                startDate: startDate || null,
+                endDate: endDate || null,
+                timezone: timezone || "UTC",
+            };
+
+            const result = await EventModel.getUserEvents(userId, options);
+
+            res.status(200).json({
+                status: "success",
+                data: {
+                    events: result.events,
+                    pagination: result.pagination,
+                },
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
 }
 
 module.exports = new EventController();

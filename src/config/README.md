@@ -575,7 +575,7 @@ CREATE TRIGGER trigger_update_location_geom
     FOR EACH ROW EXECUTE FUNCTION update_location_geom();
 
 -- 6. Populate geom column for existing location data (one-time migration)
-UPDATE locations 
+UPDATE locations
 SET geom = ST_SetSRID(ST_MakePoint(lng, lat), 4326)
 WHERE lat IS NOT NULL AND lng IS NOT NULL AND geom IS NULL;
 
@@ -585,5 +585,91 @@ WHERE lat IS NOT NULL AND lng IS NOT NULL AND geom IS NULL;
 -- - The geom column is automatically populated via database trigger
 -- - No breaking changes to existing API functionality
 -- - Enables new proximity search capabilities: "find communities near me"
+-- ========================================================================
+
+-- ========================================================================
+-- PAID EVENTS PROVISIONS (Future Implementation)
+-- ========================================================================
+-- The following additions prepare the database for paid events functionality
+-- while maintaining all existing free event functionality.
+
+-- 1. Add pricing columns to events table
+ALTER TABLE events ADD COLUMN is_paid BOOLEAN DEFAULT false;
+ALTER TABLE events ADD COLUMN price DECIMAL(10,2) DEFAULT 0.00;
+ALTER TABLE events ADD COLUMN currency VARCHAR(3) DEFAULT 'USD';
+
+-- 2. Add payment tracking to event attendees
+ALTER TABLE event_attendees ADD COLUMN payment_status VARCHAR(50) DEFAULT 'free'
+    CHECK (payment_status IN ('free', 'pending', 'completed', 'failed', 'refunded', 'waived'));
+ALTER TABLE event_attendees ADD COLUMN payment_amount DECIMAL(10,2) DEFAULT 0.00;
+ALTER TABLE event_attendees ADD COLUMN payment_date TIMESTAMPTZ;
+
+-- 3. Event payments table (similar to community_support_payments)
+CREATE TABLE event_payments (
+    id SERIAL PRIMARY KEY,
+    event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    attendee_record_id INTEGER REFERENCES event_attendees(id),
+    amount DECIMAL(10, 2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'USD',
+    payment_method VARCHAR(50), -- 'credit_card', 'paypal', etc.
+    payment_provider VARCHAR(50), -- 'stripe', 'paypal', etc.
+    provider_transaction_id VARCHAR(255),
+    status VARCHAR(50) NOT NULL CHECK (status IN ('succeeded', 'failed', 'pending', 'refunded')),
+    refund_amount DECIMAL(10,2) DEFAULT 0.00,
+    refund_reason TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 4. Revenue sharing configuration (optional)
+CREATE TABLE event_revenue_sharing (
+    id SERIAL PRIMARY KEY,
+    community_id INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+    platform_fee_percentage DECIMAL(5,2) DEFAULT 2.50, -- Platform takes 2.5%
+    processing_fee_percentage DECIMAL(5,2) DEFAULT 2.90, -- Stripe processing fee
+    community_percentage DECIMAL(5,2) DEFAULT 94.60, -- Community gets the rest (100 - 2.5 - 2.9)
+    minimum_payout DECIMAL(10,2) DEFAULT 20.00,
+    payout_schedule VARCHAR(20) DEFAULT 'weekly' CHECK (payout_schedule IN ('daily', 'weekly', 'monthly')),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(community_id)
+);
+
+-- 5. Community payouts tracking
+CREATE TABLE community_event_payouts (
+    id SERIAL PRIMARY KEY,
+    community_id INTEGER NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+    payout_period_start TIMESTAMPTZ NOT NULL,
+    payout_period_end TIMESTAMPTZ NOT NULL,
+    total_revenue DECIMAL(10,2) NOT NULL,
+    platform_fees DECIMAL(10,2) NOT NULL,
+    processing_fees DECIMAL(10,2) NOT NULL,
+    payout_amount DECIMAL(10,2) NOT NULL,
+    status VARCHAR(50) NOT NULL CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
+    provider VARCHAR(50), -- 'stripe', 'paypal', etc.
+    provider_payout_id VARCHAR(255),
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 6. Indexes for performance
+CREATE INDEX idx_events_is_paid ON events(is_paid);
+CREATE INDEX idx_events_price ON events(price);
+CREATE INDEX idx_event_attendees_payment_status ON event_attendees(payment_status);
+CREATE INDEX idx_event_payments_event_id ON event_payments(event_id);
+CREATE INDEX idx_event_payments_user_id ON event_payments(user_id);
+CREATE INDEX idx_event_payments_status ON event_payments(status);
+CREATE INDEX idx_community_event_payouts_community_id ON community_event_payouts(community_id);
+CREATE INDEX idx_community_event_payouts_status ON community_event_payouts(status);
+
+-- ========================================================================
+-- PAID EVENTS NOTES:
+-- - All existing free event functionality remains unchanged
+-- - is_paid defaults to false, so all current events remain free
+-- - payment_status defaults to 'free' for existing attendees
+-- - Revenue sharing table allows per-community fee configuration
+-- - Payout system tracks earnings and transfers to communities
+-- - Can be implemented incrementally without breaking changes
 -- ========================================================================
 ```

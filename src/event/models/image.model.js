@@ -226,6 +226,55 @@ class ImageModel {
             );
         }
     }
+
+    async create(data) {
+        const {
+            entity_id,
+            entity_type = "event",
+            image_type,
+            position = 0,
+            provider,
+            key,
+            alt_text = null,
+        } = data;
+
+        // First, check if an image already exists for this event and type
+        const checkQuery = `
+            SELECT id FROM images 
+            WHERE entity_type = $1 AND entity_id = $2 AND image_type = $3
+        `;
+        
+        const existingResult = await db.query(checkQuery, [entity_type, entity_id, image_type]);
+        
+        if (existingResult.rows.length > 0) {
+            // Update existing image
+            const updateQuery = `
+                UPDATE images 
+                SET provider = $1, key = $2, alt_text = $3
+                WHERE entity_type = $4 AND entity_id = $5 AND image_type = $6
+                RETURNING *
+            `;
+            
+            const result = await db.query(updateQuery, [
+                provider, key, alt_text, entity_type, entity_id, image_type
+            ]);
+            return result.rows[0];
+        } else {
+            // Insert new image
+            const insertQuery = `
+                INSERT INTO images
+                    (entity_type, entity_id, image_type, position, provider, key, alt_text)
+                VALUES
+                    ($1, $2, $3, $4, $5, $6, $7)
+                RETURNING *
+            `;
+            
+            const result = await db.query(insertQuery, [
+                entity_type, entity_id, image_type, position, provider, key, alt_text
+            ]);
+            return result.rows[0];
+        }
+    }
 }
 
 module.exports = new ImageModel();
