@@ -138,6 +138,35 @@ class EventController {
                     status: "error",
                     message: result.reason,
                     data: {
+                        canAccess: false,
+                        community: result.community
+                    }
+                });
+            }
+
+            res.status(200).json({
+                status: "success",
+                data: result
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async getEventByUrl(req, res, next) {
+        try {
+            const { uniqueUrl } = req.params;
+            const userId = req.user?.id || null; // Get user ID if authenticated
+
+            const result = await EventModel.getEventByUniqueUrlWithUserContext(uniqueUrl, userId);
+
+            // If user cannot access the event (private community)
+            if (!result.canAccess) {
+                return res.status(403).json({
+                    status: "error",
+                    message: result.reason,
+                    data: {
+                        canAccess: false,
                         community: result.community
                     }
                 });
