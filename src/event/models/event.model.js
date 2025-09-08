@@ -346,6 +346,156 @@ class EventModel {
     }
 
     /**
+     * Get event with community info and user-specific data by unique URL
+     * @param {string} uniqueUrl - Event unique URL
+     * @param {number|null} userId - User ID (null if not authenticated)
+     * @returns {object} Event with community and user context
+     */
+    async getEventByUniqueUrlWithUserContext(uniqueUrl, userId = null) {
+        try {
+            const query = `
+                SELECT 
+                    -- Event data
+                    e.id, e.unique_url, e.title, e.description, 
+                    e.start_time, e.end_time, e.current_attendees,
+                    e.max_attendees, e.location_details, e.event_type, e.timezone,
+                    e.created_at AS event_created_at,
+                    
+                    -- Community data
+                    c.id AS community_id, c.name AS community_name, 
+                    c.unique_url AS community_unique_url, c.is_private AS community_is_private,
+                    
+                    -- Location data
+                    l.id AS location_id, l.name AS location_name, 
+                    l.location_type, l.lat, l.lng, l.address,
+                    
+                    -- Cover image
+                    (
+                        SELECT json_build_object(
+                            'id', i.id,
+                            'provider', i.provider,
+                            'key', i.key,
+                            'altText', i.alt_text
+                        )
+                        FROM images i
+                        WHERE i.entity_type = 'event' AND i.entity_id = e.id AND i.image_type = 'cover'
+                        LIMIT 1
+                    ) AS cover_image,
+                    
+                    -- User attendance status (if logged in)
+                    CASE 
+                        WHEN $2::INTEGER IS NOT NULL THEN (
+                            SELECT ea.status
+                            FROM event_attendees ea
+                            WHERE ea.event_id = e.id AND ea.user_id = $2::INTEGER
+                        )
+                        ELSE NULL
+                    END AS user_attendance_status,
+                    
+                    -- User community membership (if logged in)
+                    CASE 
+                        WHEN $2::INTEGER IS NOT NULL THEN (
+                            SELECT json_build_object(
+                                'role', cm.role,
+                                'is_premium', cm.is_premium,
+                                'joined_at', cm.joined_at
+                            )
+                            FROM community_members cm
+                            WHERE cm.community_id = c.id AND cm.user_id = $2::INTEGER
+                        )
+                        ELSE NULL
+                    END AS user_membership
+                    
+                FROM events e
+                JOIN posts p ON e.post_id = p.id
+                JOIN communities c ON p.community_id = c.id
+                LEFT JOIN locations l ON l.entity_type = 'event' AND l.entity_id = e.id
+                WHERE e.unique_url = $1;
+            `;
+
+            const result = await db.query(query, [uniqueUrl, userId]);
+
+            if (result.rows.length === 0) {
+                throw new ApiError("Event not found", 404);
+            }
+
+            const row = result.rows[0];
+            
+            // Check if user can access this event (if community is private)
+            const canAccess = this._canUserAccessEvent(row, userId);
+            
+            if (!canAccess.allowed) {
+                return {
+                    canAccess: false,
+                    reason: canAccess.reason,
+                    community: {
+                        id: row.community_id,
+                        name: row.community_name,
+                        uniqueUrl: row.community_unique_url
+                    }
+                };
+            }
+
+            // Determine if event has passed
+            const now = new Date();
+            const startTime = new Date(row.start_time);
+            const endTime = row.end_time ? new Date(row.end_time) : null;
+            const hasPassed = startTime < now;
+            const isOngoing = startTime <= now && endTime && endTime > now;
+
+            const eventData = {
+                id: row.id,
+                uniqueUrl: row.unique_url,
+                title: row.title,
+                description: row.description,
+                startTime: row.start_time,
+                endTime: row.end_time,
+                timezone: row.timezone,
+                currentAttendees: row.current_attendees,
+                maxAttendees: row.max_attendees,
+                locationDetails: row.location_details,
+                eventType: row.event_type,
+                hasPassed,
+                isOngoing,
+                createdAt: row.event_created_at,
+                community: {
+                    id: row.community_id,
+                    name: row.community_name,
+                    uniqueUrl: row.community_unique_url
+                },
+                coverImage: row.cover_image,
+                location: row.location_id ? {
+                    id: row.location_id,
+                    name: row.location_name,
+                    locationType: row.location_type,
+                    lat: row.lat,
+                    lng: row.lng,
+                    address: row.address
+                } : null
+            };
+
+            // Add user-specific data if logged in
+            const response = {
+                canAccess: true,
+                event: eventData
+            };
+
+            if (userId) {
+                response.userContext = {
+                    attendanceStatus: row.user_attendance_status || 'not_attending',
+                    membership: row.user_membership
+                };
+            }
+
+            return response;
+
+        } catch (error) {
+            if (error instanceof ApiError) throw error;
+            throw new ApiError(`Failed to fetch event with user context: ${error.message}`, 500);
+        }
+    }
+
+    /**
      * Get event with community info and user-specific data
      * @param {number} eventId - Event ID
      * @param {number|null} userId - User ID (null if not authenticated)
@@ -358,6 +508,7 @@ class EventModel {
                     -- Event data
                     e.id, e.unique_url, e.title, e.description, 
                     e.start_time, e.end_time, e.current_attendees,
+                    e.max_attendees, e.location_details, e.event_type, e.timezone,
                     e.created_at AS event_created_at,
                     
                     -- Community data
@@ -449,7 +600,11 @@ class EventModel {
                 description: row.description,
                 startTime: row.start_time,
                 endTime: row.end_time,
+                timezone: row.timezone,
                 currentAttendees: row.current_attendees,
+                maxAttendees: row.max_attendees,
+                locationDetails: row.location_details,
+                eventType: row.event_type,
                 hasPassed,
                 isOngoing,
                 createdAt: row.event_created_at,
@@ -477,7 +632,7 @@ class EventModel {
 
             if (userId) {
                 response.userContext = {
-                    attendanceStatus: row.user_attendance_status,
+                    attendanceStatus: row.user_attendance_status || 'not_attending',
                     membership: row.user_membership
                 };
             }
