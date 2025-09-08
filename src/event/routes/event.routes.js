@@ -7,6 +7,7 @@ const optionalAuth = require("../../middleware/optionalAuth");
 const { verifyEmail } = require("../../middleware/verifyEmail");
 const {
     validateEventId,
+    validateEventUrl,
     validateCreateEvent,
     validateUpdateEvent,
     validateCommunityEventsQuery,
@@ -37,8 +38,11 @@ router.get(
     EventController.getUserEvents
 );
 
-// Get a specific event
+// Get a specific event by ID
 router.get("/:eventId", optionalAuth, validateEventId, EventController.getEvent);
+
+// Get a specific event by unique URL
+router.get("/url/:uniqueUrl", optionalAuth, validateEventUrl, EventController.getEventByUrl);
 
 // Update an event
 router.put(

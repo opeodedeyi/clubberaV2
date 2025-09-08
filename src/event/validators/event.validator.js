@@ -19,6 +19,17 @@ const validateEventId = [
     checkValidationErrors,
 ];
 
+// Validate event unique URL parameter
+const validateEventUrl = [
+    param("uniqueUrl")
+        .trim()
+        .isLength({ min: 1, max: 255 })
+        .withMessage("Event unique URL must be between 1 and 255 characters")
+        .matches(/^[a-z0-9-]+$/)
+        .withMessage("Event unique URL must contain only lowercase letters, numbers, and hyphens"),
+    checkValidationErrors,
+];
+
 // Validate event creation
 const validateCreateEvent = [
     body("title")
@@ -441,6 +452,7 @@ const validateUserEventsQuery = [
 
 module.exports = {
     validateEventId,
+    validateEventUrl,
     validateCreateEvent,
     validateUpdateEvent,
     validateCommunityEventsQuery,
