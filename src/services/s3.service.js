@@ -21,10 +21,10 @@ class S3Service {
 
     async generatePresignedUrl(fileType, entityType, entityId, imageType) {
         // Validate file type
-        const validTypes = ["image/jpeg", "image/png", "image/webp"];
+        const validTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
         if (!validTypes.includes(fileType)) {
             throw new ApiError(
-                "Invalid file type. Only JPEG, PNG and WebP are allowed",
+                "Invalid file type. Only JPEG, PNG, GIF and WebP are allowed",
                 400
             );
         }

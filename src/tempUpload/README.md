@@ -50,10 +50,10 @@ Generate a pre-signed URL for temporary file uploads before creating entities (c
 
 The following image file types are supported:
 
--   `image/jpeg`
--   `image/png`
--   `image/gif`
--   `image/webp`
+-   `image/jpeg` - JPEG format
+-   `image/png` - PNG format  
+-   `image/gif` - GIF format (including animations)
+-   `image/webp` - WebP format (modern, efficient compression)
 
 ---
 
@@ -118,8 +118,8 @@ The following image file types are supported:
 **Entity Type:** `event`  
 **Supported Image Types:**
 
--   `banner` - Event banner image
--   `thumbnail` - Event thumbnail image
+-   `cover` - Event cover image
+-   `gallery` - Event gallery image
 
 **Example Request:**
 
@@ -127,7 +127,7 @@ The following image file types are supported:
 {
     "fileType": "image/gif",
     "entityType": "event",
-    "imageType": "banner"
+    "imageType": "cover"
 }
 ```
 

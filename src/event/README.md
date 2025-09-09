@@ -298,12 +298,12 @@ Update an existing event. Only specific fields can be modified after event creat
 - `locationDetails` - Location instructions/details
 - `maxAttendees` - Maximum number of attendees
 - `location` - Venue/address information
-- `coverImage` - Event cover image
+- `eventType` - Event type (physical/online) - **Now editable**
 
 **Non-Editable Fields:**
-- `eventType` (physical/online) - Cannot be changed after creation
 - `content` (post content) - Cannot be changed after creation
 - `isSupportersOnly` - Cannot be changed after creation
+- `coverImage` - Use separate cover image endpoint for updates
 
 **Request Body:** (all fields optional)
 
@@ -311,6 +311,7 @@ Update an existing event. Only specific fields can be modified after event creat
 {
     "title": "Updated Tech Meetup: AI & Deep Learning",
     "description": "Updated description with more details...",
+    "eventType": "online",
     "startTime": "2025-09-15T19:00:00", 
     "endTime": "2025-09-15T21:00:00",
     "timezone": "America/New_York",
@@ -322,11 +323,6 @@ Update an existing event. Only specific fields can be modified after event creat
         "lat": 37.7849,
         "lng": -122.4094,
         "address": "Updated address"
-    },
-    "coverImage": {
-        "key": "temp/events/updated-cover-123.jpg",
-        "provider": "s3",
-        "alt_text": "Updated event cover"
     }
 }
 ```
@@ -335,7 +331,55 @@ Update an existing event. Only specific fields can be modified after event creat
 
 ---
 
-### 4. Delete Event
+### 4. Update Event Cover Image
+
+Update the cover image for an event. This is separate from general event updates.
+
+**Endpoint:** `PUT /events/{eventId}/cover-image`  
+**Authentication:** Required  
+**Email Verification:** Required  
+**Permission:** 
+- Community owners can update cover image for any event in their community
+- Community organizers can update cover image for events only if community has active Pro subscription
+- Event creators can update cover image for their own events (if they still have creation permissions)
+
+**Request Body:**
+
+```json
+{
+    "key": "events/15/new-cover-image.jpg",
+    "imageType": "cover",
+    "altText": "Updated event cover image description"
+}
+```
+
+**Response:**
+
+```json
+{
+    "status": "success",
+    "message": "Event cover image updated successfully",
+    "data": {
+        "event": {
+            // Complete event object with updated cover image
+        },
+        "coverImage": {
+            "id": 8,
+            "entityType": "event",
+            "entityId": 15,
+            "imageType": "cover",
+            "provider": "s3",
+            "key": "events/15/new-cover-image.jpg",
+            "altText": "Updated event cover image description",
+            "createdAt": "2025-08-27T18:00:00.000Z"
+        }
+    }
+}
+```
+
+---
+
+### 5. Delete Event
 
 Permanently delete an event.
 
@@ -864,9 +908,14 @@ All endpoints return errors in the following format:
 
 - **name**: 1-255 characters
 - **locationType**: "address", "venue", "online", etc.
-- **lat**: latitude between -90 and 90
-- **lng**: longitude between -180 and 180
-- **address**: max 500 characters
+- **lat**: latitude between -90 and 90 (required for physical events with location details)
+- **lng**: longitude between -180 and 180 (required for physical events with location details)
+- **address**: max 500 characters (required for physical events with location details)
+
+**Location Validation Rules:**
+- For **online events**: All location fields are completely optional
+- For **physical events**: If any location field is provided (lat, lng, or address), then all three become required
+- This ensures physical events have complete location information when specified
 
 ### Event Search
 
@@ -986,9 +1035,11 @@ All endpoints return errors in the following format:
 2. **Event Capacity**: When maxAttendees is reached, new attendees automatically go to waitlist
 3. **Timezone Handling**: All times stored in UTC, with intelligent conversion and display in event's specified timezone
 4. **Past Events**: Cannot update start/end times for events that have already begun
-5. **Image Management**: Cover images are handled during event creation/update via coverImage field
+5. **Image Management**: Cover images have dedicated endpoint (`PUT /events/:id/cover-image`) separate from general event updates
 6. **Location Data**: Physical events benefit from detailed location information for proximity search
-7. **Waitlist Management**: Automatic FIFO promotion when attendees change status to "not_attending"
-8. **Community Integration**: Events inherit community privacy and membership settings
-9. **Transaction Safety**: All event operations use database transactions to ensure data consistency
-10. **Performance Optimized**: Single queries with joins to reduce database round trips
+7. **Conditional Location Validation**: Online events have optional location fields; physical events require complete location info if any is provided
+8. **Event Type Updates**: Event type (physical/online) can now be changed after creation via the update endpoint
+9. **Waitlist Management**: Automatic FIFO promotion when attendees change status to "not_attending"
+10. **Community Integration**: Events inherit community privacy and membership settings
+11. **Transaction Safety**: All event operations use database transactions to ensure data consistency
+12. **Performance Optimized**: Single queries with joins to reduce database round trips

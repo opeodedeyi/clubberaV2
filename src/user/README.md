@@ -543,7 +543,7 @@ All image routes require authentication (🔒).
 ```json
 // Request Body
 {
-    "fileType": "image/jpeg", // "image/jpeg" | "image/png" | "image/webp"
+    "fileType": "image/jpeg", // "image/jpeg" | "image/png" | "image/gif" | "image/webp"
     "imageType": "profile"    // "profile" | "banner"
 }
 
