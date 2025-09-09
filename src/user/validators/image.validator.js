@@ -5,8 +5,8 @@ const validateGetUploadUrl = [
     body("fileType")
         .notEmpty()
         .withMessage("File type is required")
-        .matches(/^image\/(jpeg|png|webp)$/)
-        .withMessage("Invalid file type. Only JPEG, PNG, and WebP are allowed"),
+        .matches(/^image\/(jpeg|png|gif|webp)$/)
+        .withMessage("Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed"),
 
     body("imageType")
         .notEmpty()
