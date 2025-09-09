@@ -212,10 +212,10 @@ class EventController {
                 locationDetails,
                 maxAttendees,
                 location,
-                coverImage,
+                eventType,
             } = req.body;
 
-            // Note: content, eventType, and isSupportersOnly are not editable after creation
+            // Note: content and isSupportersOnly are not editable after creation
 
             // Validate timezone if provided
             if (timezone !== undefined && timezone && !TimezoneHelper.isValidTimezone(timezone)) {
@@ -248,6 +248,7 @@ class EventController {
                 eventData.locationDetails = locationDetails;
             if (maxAttendees !== undefined)
                 eventData.maxAttendees = maxAttendees;
+            if (eventType !== undefined) eventData.eventType = eventType;
 
             // Update the event
             const updatedEvent = await EventModel.updateEvent(
@@ -257,21 +258,7 @@ class EventController {
                 location
             );
 
-            // If cover image is provided, save the image
-            let coverImageData = null;
-            if (coverImage && coverImage.key && coverImage.key.trim().length > 0) {
-                const ImageModel = require("../models/image.model");
-                coverImageData = await ImageModel.create({
-                    entity_id: updatedEvent.id,
-                    entity_type: "event",
-                    image_type: "cover",
-                    provider: coverImage.provider || "s3",
-                    key: coverImage.key,
-                    alt_text: coverImage.alt_text || null,
-                });
-            }
-
-            // Get the complete event with cover image
+            // Get the complete event
             const completeEvent = await EventModel.getEventById(
                 updatedEvent.id
             );
@@ -403,6 +390,45 @@ class EventController {
                 data: {
                     events: result.events,
                     pagination: result.pagination,
+                },
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async updateEventCoverImage(req, res, next) {
+        try {
+            const { eventId } = req.params;
+            const userId = req.user.id;
+
+            // Check if user can manage this event
+            const canManage = await CommunityPermissions.canManageEvent(userId, parseInt(eventId));
+
+            if (!canManage.allowed) {
+                throw new ApiError(canManage.reason, 403);
+            }
+
+            const { key, imageType = "cover", altText } = req.body;
+
+            // Save the cover image
+            const ImageModel = require("../models/image.model");
+            const coverImageData = await ImageModel.saveEventImage(parseInt(eventId), {
+                imageType,
+                provider: "s3",
+                key,
+                altText: altText || null,
+            });
+
+            // Get the complete event with updated cover image
+            const completeEvent = await EventModel.getEventById(parseInt(eventId));
+
+            res.status(200).json({
+                status: "success",
+                message: "Event cover image updated successfully",
+                data: {
+                    event: completeEvent,
+                    coverImage: coverImageData,
                 },
             });
         } catch (error) {

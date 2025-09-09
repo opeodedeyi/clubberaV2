@@ -10,11 +10,11 @@ class TokenService {
 
         if (purpose === "api_access" || purpose === "google_auth") {
             token = jwt.sign({ userId }, process.env.JWT_SECRET, {
-                expiresIn: "7d",
+                expiresIn: "60d",
             });
 
             expiresAt = new Date();
-            expiresAt.setDate(expiresAt.getDate() + 7);
+            expiresAt.setDate(expiresAt.getDate() + 60);
         } else {
             token = crypto.randomBytes(32).toString("hex");
 

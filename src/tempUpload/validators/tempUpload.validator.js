@@ -57,6 +57,12 @@ const validateTempUploadUrl = [
                         "For users, image type must be profile or banner"
                     );
                 }
+            } else if (entityType === "event") {
+                if (!["cover", "gallery"].includes(value)) {
+                    throw new Error(
+                        "For events, image type must be cover or gallery"
+                    );
+                }
             }
             // Add other entity types as needed
 

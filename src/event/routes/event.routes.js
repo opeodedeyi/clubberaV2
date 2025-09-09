@@ -13,6 +13,9 @@ const {
     validateCommunityEventsQuery,
     validateUserEventsQuery,
 } = require("../validators/event.validator");
+const {
+    validateSaveEventImage,
+} = require("../validators/image.validator");
 
 // Create a new event in a community
 router.post(
@@ -51,6 +54,15 @@ router.put(
     verifyEmail,
     validateUpdateEvent,
     EventController.updateEvent
+);
+
+// Update event cover image
+router.put(
+    "/:eventId/cover-image",
+    authenticate,
+    verifyEmail,
+    validateSaveEventImage,
+    EventController.updateEventCoverImage
 );
 
 // Delete an event

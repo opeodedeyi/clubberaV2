@@ -118,20 +118,44 @@ const validateCreateEvent = [
     body("location.lat")
         .optional()
         .isFloat({ min: -90, max: 90 })
-        .withMessage("Latitude must be a valid coordinate between -90 and 90"),
+        .withMessage("Latitude must be a valid coordinate between -90 and 90")
+        .custom((value, { req }) => {
+            // For physical events, if any location info is provided, lat should be provided
+            if (req.body.eventType === "physical" && req.body.location && 
+                (req.body.location.lng || req.body.location.address) && !value) {
+                throw new Error("Latitude is required for physical events with location details");
+            }
+            return true;
+        }),
 
     body("location.lng")
         .optional()
         .isFloat({ min: -180, max: 180 })
         .withMessage(
             "Longitude must be a valid coordinate between -180 and 180"
-        ),
+        )
+        .custom((value, { req }) => {
+            // For physical events, if any location info is provided, lng should be provided
+            if (req.body.eventType === "physical" && req.body.location && 
+                (req.body.location.lat || req.body.location.address) && !value) {
+                throw new Error("Longitude is required for physical events with location details");
+            }
+            return true;
+        }),
 
     body("location.address")
         .optional()
         .trim()
         .isLength({ max: 500 })
-        .withMessage("Address cannot exceed 500 characters"),
+        .withMessage("Address cannot exceed 500 characters")
+        .custom((value, { req }) => {
+            // For physical events, if any location info is provided, address should be provided
+            if (req.body.eventType === "physical" && req.body.location && 
+                (req.body.location.lat || req.body.location.lng) && !value) {
+                throw new Error("Address is required for physical events with location details");
+            }
+            return true;
+        }),
 
     body("coverImage")
         .optional()
@@ -268,42 +292,44 @@ const validateUpdateEvent = [
     body("location.lat")
         .optional()
         .isFloat({ min: -90, max: 90 })
-        .withMessage("Latitude must be a valid coordinate between -90 and 90"),
+        .withMessage("Latitude must be a valid coordinate between -90 and 90")
+        .custom((value, { req }) => {
+            // For physical events, if any location info is provided, lat should be provided
+            if (req.body.eventType === "physical" && req.body.location && 
+                (req.body.location.lng || req.body.location.address) && !value) {
+                throw new Error("Latitude is required for physical events with location details");
+            }
+            return true;
+        }),
 
     body("location.lng")
         .optional()
         .isFloat({ min: -180, max: 180 })
         .withMessage(
             "Longitude must be a valid coordinate between -180 and 180"
-        ),
+        )
+        .custom((value, { req }) => {
+            // For physical events, if any location info is provided, lng should be provided
+            if (req.body.eventType === "physical" && req.body.location && 
+                (req.body.location.lat || req.body.location.address) && !value) {
+                throw new Error("Longitude is required for physical events with location details");
+            }
+            return true;
+        }),
 
     body("location.address")
         .optional()
         .trim()
         .isLength({ max: 500 })
-        .withMessage("Address cannot exceed 500 characters"),
-
-    body("coverImage")
-        .optional()
-        .isObject()
-        .withMessage("Cover image must be an object"),
-    
-    body("coverImage.provider")
-        .optional()
-        .isString()
-        .withMessage("Cover image provider must be a string"),
-        
-    body("coverImage.key")
-        .optional()
-        .isString()
-        .isLength({ min: 1, max: 255 })
-        .withMessage("Cover image key must be a string between 1-255 characters"),
-        
-    body("coverImage.alt_text")
-        .optional()
-        .isString()
-        .isLength({ max: 255 })
-        .withMessage("Cover image alt text must be a string with max 255 characters"),
+        .withMessage("Address cannot exceed 500 characters")
+        .custom((value, { req }) => {
+            // For physical events, if any location info is provided, address should be provided
+            if (req.body.eventType === "physical" && req.body.location && 
+                (req.body.location.lat || req.body.location.lng) && !value) {
+                throw new Error("Address is required for physical events with location details");
+            }
+            return true;
+        }),
 
     // Only validate future date if startTime is being updated
     body("startTime")
