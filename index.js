@@ -1,6 +1,8 @@
 // index.js
 
 const express = require("express");
+const http = require("http");
+const socketIo = require("socket.io");
 var cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
@@ -26,6 +28,8 @@ const tempUploadRoutes = require("./src/tempUpload/routes/tempUpload.routes");
 const eventRoutes = require("./src/event/routes/event.routes");
 const attendanceRoutes = require("./src/event/routes/attendance.routes");
 const eventSearchRoutes = require("./src/event/routes/eventSearch.routes");
+const messageRoutes = require("./src/message/routes/message.routes");
+const notificationRoutes = require("./src/notification/routes/notification.routes");
 // const helpTopicRoutes = require("./src/help/routes/helpTopic.routes");
 // const helpEntryRoutes = require("./src/help/routes/helpEntry.routes");
 // const helpSearchRoutes = require("./src/help/routes/helpSearch.routes");
@@ -37,6 +41,7 @@ require("dotenv").config();
 
 // Initialize express app
 const app = express();
+const server = http.createServer(app);
 const port = process.env.PORT || 4000;
 
 // Middleware
@@ -45,6 +50,21 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 app.use(morgan("dev")); // Request logging
+
+// Initialize Socket.IO
+const io = socketIo(server, {
+    cors: {
+        origin: process.env.FRONTEND_URL || "http://localhost:3000",
+        methods: ["GET", "POST"],
+        credentials: true,
+    },
+});
+
+// Make io instance available to the app
+app.set("io", io);
+
+// Socket.IO setup
+require("./src/config/socket")(io);
 
 // Health check route
 app.get("/", (req, res) => {
@@ -77,6 +97,8 @@ app.use("/api/community-admin", communityAdminRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/events", attendanceRoutes);
 app.use("/api/event-search", eventSearchRoutes);
+app.use("/api/messages", messageRoutes);
+app.use("/api/notifications", notificationRoutes);
 // app.use("/api/help", helpTopicRoutes);
 // app.use("/api/help", helpEntryRoutes);
 // app.use("/api/help", helpSearchRoutes);
@@ -84,7 +106,6 @@ app.use("/api/event-search", eventSearchRoutes);
 
 // Initialize scheduler service
 if (process.env.NODE_ENV !== "test") {
-    // Only initialize in non-test environments
     schedulerService.initializeScheduler();
 }
 
@@ -108,8 +129,9 @@ app.use((err, req, res, next) => {
 });
 
 if (require.main === module) {
-    app.listen(port, () => {
-        console.log(`app listening on port ${port}`);
+    server.listen(port, () => {
+        console.log(`Server listening on port ${port}`);
+        console.log(`Socket.IO enabled for real-time notifications`);
     });
 }
 
