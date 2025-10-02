@@ -672,4 +672,89 @@ CREATE INDEX idx_community_event_payouts_status ON community_event_payouts(statu
 -- - Payout system tracks earnings and transfers to communities
 -- - Can be implemented incrementally without breaking changes
 -- ========================================================================
+
+-- ========================================================================
+-- MESSAGING SYSTEM
+-- ========================================================================
+-- Simple polymorphic messaging system for user-to-user and user-to-community messaging.
+
+-- Core messaging table with polymorphic recipient design
+CREATE TABLE messages (
+    id BIGSERIAL PRIMARY KEY,
+    sender_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    recipient_type VARCHAR(50) NOT NULL CHECK (recipient_type IN ('user', 'community')),
+    recipient_id BIGINT NOT NULL,
+    content TEXT NOT NULL,
+    parent_message_id BIGINT REFERENCES messages(id) ON DELETE CASCADE, -- For replies/threads
+    is_read BOOLEAN DEFAULT false,
+    is_deleted BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for optimal performance
+CREATE INDEX idx_messages_sender_id ON messages(sender_id);
+CREATE INDEX idx_messages_recipient ON messages(recipient_type, recipient_id);
+CREATE INDEX idx_messages_parent_id ON messages(parent_message_id);
+CREATE INDEX idx_messages_is_read ON messages(is_read);
+CREATE INDEX idx_messages_created_at ON messages(created_at);
+
+-- ========================================================================
+-- MESSAGING NOTES:
+-- - Polymorphic messaging: single table handles user and community messages
+-- - Simple recipient_type + recipient_id pattern for easy extensibility
+-- - Parent message support for replies and conversation threading
+-- - Real-time delivery via Socket.IO
+-- - Soft delete for messages maintains conversation context
+-- - Clean, simple design without over-engineering
+-- ========================================================================
+
+-- ========================================================================
+-- NOTIFICATIONS SYSTEM
+-- ========================================================================
+-- Flexible notification system for all user activities and events.
+
+-- Core notifications table
+CREATE TABLE notifications (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type VARCHAR(50) NOT NULL CHECK (type IN (
+        'new_message', 'new_community_message', 'message_reply',
+        'community_join_request', 'join_request_approved', 'join_request_rejected',
+        'new_event', 'event_updated', 'event_cancelled',
+        'community_announcement', 'new_post', 'post_reply',
+        'event_reminder', 'community_role_changed'
+    )),
+    trigger_entity_type VARCHAR(50) NOT NULL CHECK (trigger_entity_type IN (
+        'message', 'event', 'post', 'community', 'community_join_request'
+    )),
+    trigger_entity_id BIGINT NOT NULL,
+    actor_user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    message TEXT,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    is_read BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for optimal performance
+CREATE INDEX idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX idx_notifications_type ON notifications(type);
+CREATE INDEX idx_notifications_trigger_entity ON notifications(trigger_entity_type, trigger_entity_id);
+CREATE INDEX idx_notifications_is_read ON notifications(is_read);
+CREATE INDEX idx_notifications_created_at ON notifications(created_at);
+CREATE INDEX idx_notifications_actor_user ON notifications(actor_user_id);
+CREATE INDEX idx_notifications_metadata ON notifications USING gin (metadata);
+
+-- ========================================================================
+-- NOTIFICATIONS NOTES:
+-- - Polymorphic design: can reference any entity (messages, events, posts, etc.)
+-- - Flexible notification types covering all user activities
+-- - Actor tracking: know who triggered each notification
+-- - Rich content: title and message for display
+-- - Metadata JSON for type-specific data
+-- - Always notifies individual users (not communities directly)
+-- - Real-time delivery via Socket.IO integration
+-- - Supports both user-triggered and system-generated notifications
+-- ========================================================================
 ```

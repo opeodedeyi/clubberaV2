@@ -9,7 +9,10 @@
       "Bash(npm run test:events:integration:*)",
       "Bash(npx jest:*)",
       "Bash(node:*)",
-      "Bash(npm run test:events:api:*)"
+      "Bash(npm run test:events:api:*)",
+      "Bash(timeout 5s npm start)",
+      "Read(//d/**)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []
