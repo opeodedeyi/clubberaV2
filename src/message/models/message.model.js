@@ -114,7 +114,30 @@ class MessageModel {
         };
 
         const result = await db.query(query.text, query.values);
-        return result.rows;
+
+        // Get recipient user info
+        const recipientQuery = await db.query(`
+            SELECT
+                u.id,
+                u.full_name,
+                u.unique_url,
+                CASE WHEN img.id IS NOT NULL THEN
+                    json_build_object(
+                        'id', img.id,
+                        'provider', img.provider,
+                        'key', img.key,
+                        'alt_text', img.alt_text
+                    )
+                ELSE NULL END as profile_image
+            FROM users u
+            LEFT JOIN images img ON img.entity_type = 'user' AND img.entity_id = u.id AND img.image_type = 'profile'
+            WHERE u.id = $1
+        `, [otherUserId]);
+
+        return {
+            messages: result.rows,
+            recipient: recipientQuery.rows[0] || null
+        };
     }
 
     // Find messages in a community conversation
@@ -128,7 +151,7 @@ class MessageModel {
         );
 
         if (memberCheck.rows.length === 0) {
-            return []; // User is not a member
+            return { messages: [], recipient: null }; // User is not a member
         }
 
         let whereConditions = [
@@ -161,7 +184,30 @@ class MessageModel {
         };
 
         const result = await db.query(query.text, query.values);
-        return result.rows;
+
+        // Get community info
+        const communityQuery = await db.query(`
+            SELECT
+                c.id,
+                c.name,
+                c.unique_url,
+                CASE WHEN img.id IS NOT NULL THEN
+                    json_build_object(
+                        'id', img.id,
+                        'provider', img.provider,
+                        'key', img.key,
+                        'alt_text', img.alt_text
+                    )
+                ELSE NULL END as profile_image
+            FROM communities c
+            LEFT JOIN images img ON img.entity_type = 'community' AND img.entity_id = c.id AND img.image_type = 'profile'
+            WHERE c.id = $1
+        `, [communityId]);
+
+        return {
+            messages: result.rows,
+            recipient: communityQuery.rows[0] || null
+        };
     }
 
     // Get all conversations for a user

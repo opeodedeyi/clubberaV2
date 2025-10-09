@@ -45,7 +45,7 @@ class MessageController {
             options.beforeMessageId = parseInt(beforeMessageId);
         }
 
-        const messages = await MessageService.getConversation(
+        const result = await MessageService.getConversation(
             userId,
             recipientType,
             parseInt(recipientId),
@@ -55,11 +55,12 @@ class MessageController {
         res.json({
             status: 'success',
             data: {
-                messages,
+                messages: result.messages,
+                recipient: result.recipient,
                 pagination: {
                     limit: options.limit,
                     offset: options.offset,
-                    hasMore: messages.length === options.limit
+                    hasMore: result.messages.length === options.limit
                 }
             }
         });

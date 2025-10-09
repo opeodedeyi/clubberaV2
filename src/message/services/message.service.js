@@ -68,7 +68,7 @@ class MessageService {
         recipientId,
         options = {}
     ) {
-        let messages;
+        let result;
 
         if (recipientType === "user") {
             // Check if user can message this user
@@ -81,13 +81,13 @@ class MessageService {
                     "You can only view conversations with users who share a community with you"
                 );
             }
-            messages = await MessageModel.findUserConversation(
+            result = await MessageModel.findUserConversation(
                 userId,
                 recipientId,
                 options
             );
         } else if (recipientType === "community") {
-            messages = await MessageModel.findCommunityConversation(
+            result = await MessageModel.findCommunityConversation(
                 recipientId,
                 userId,
                 options
@@ -99,7 +99,7 @@ class MessageService {
         // Auto-mark messages as read when viewing the conversation
         await MessageModel.markConversationAsRead(userId, recipientType, recipientId);
 
-        return messages;
+        return result;
     }
 
     // Get all conversations for a user
