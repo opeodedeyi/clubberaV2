@@ -112,7 +112,23 @@ Response:
                 "is_read": false,
                 "created_at": "2023-12-01T10:00:00Z"
             }
-        ]
+        ],
+        "recipient": {
+            "id": 123,
+            "full_name": "Jane Smith",  // or "name" for communities
+            "unique_url": "jane-smith",
+            "profile_image": {
+                "id": 5,
+                "provider": "cloudinary",
+                "key": "path/to/image.jpg",
+                "alt_text": "Profile picture"
+            }
+        },
+        "pagination": {
+            "limit": 50,
+            "offset": 0,
+            "hasMore": false
+        }
     }
 }
 ```
