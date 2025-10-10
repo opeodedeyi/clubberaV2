@@ -1,7 +1,7 @@
 // src/notification/services/notification.service.js
 
-const NotificationModel = require('../models/notification.model');
-const { socketManager } = require('../../config/socket');
+const NotificationModel = require("../models/notification.model");
+const { socketManager } = require("../../config/socket");
 
 class NotificationService {
     // Create a single notification
@@ -16,10 +16,12 @@ class NotificationService {
 
     // Create multiple notifications (bulk)
     static async createBulkNotifications(notifications) {
-        const createdNotifications = await NotificationModel.createBulk(notifications);
+        const createdNotifications = await NotificationModel.createBulk(
+            notifications
+        );
 
         // Send real-time notifications for all
-        createdNotifications.forEach(notification => {
+        createdNotifications.forEach((notification) => {
             this.sendRealTimeNotification(notification);
         });
 
@@ -39,18 +41,24 @@ class NotificationService {
     // Mark notification as read (supports grouped notifications)
     static async markAsRead(notificationId, userId) {
         // Check if this is a grouped notification
-        if (typeof notificationId === 'string' && notificationId.startsWith('grouped_')) {
+        if (
+            typeof notificationId === "string" &&
+            notificationId.startsWith("grouped_")
+        ) {
             // Extract notification IDs from grouped notification
             // This requires the client to send the notification_ids array
             // Or we can fetch the group and mark all
-            throw new Error('Use markMultipleAsRead for grouped notifications');
+            throw new Error("Use markMultipleAsRead for grouped notifications");
         }
         return await NotificationModel.markAsRead(notificationId, userId);
     }
 
     // Mark multiple notifications as read (for grouped notifications)
     static async markMultipleAsRead(notificationIds, userId) {
-        return await NotificationModel.markMultipleAsRead(notificationIds, userId);
+        return await NotificationModel.markMultipleAsRead(
+            notificationIds,
+            userId
+        );
     }
 
     // Mark all notifications as read
@@ -64,12 +72,12 @@ class NotificationService {
             if (socketManager.io) {
                 socketManager.io
                     .to(`user_${notification.user_id}`)
-                    .emit('new_notification', {
-                        notification: notification
+                    .emit("new_notification", {
+                        notification: notification,
                     });
             }
         } catch (error) {
-            console.error('Error sending real-time notification:', error);
+            console.error("Error sending real-time notification:", error);
         }
     }
 
@@ -77,50 +85,54 @@ class NotificationService {
 
     // Message notifications
     static async notifyNewMessage(messageData) {
-        const { senderId, recipientId, content, messageId, senderName } = messageData;
+        const { senderId, recipientId, messageId, senderName } = messageData;
 
         return await this.createNotification({
             userId: recipientId,
-            type: 'new_message',
-            triggerEntityType: 'message',
+            type: "new_message",
+            triggerEntityType: "message",
             triggerEntityId: messageId,
             actorUserId: senderId,
-            title: `New message from ${senderName}`,
-            message: content.length > 100 ? content.substring(0, 100) + '...' : content,
+            title: `New message`,
+            message: `You have received a new message from ${senderName}`,
             metadata: {
                 senderId: senderId,
-                messageId: messageId
-            }
+                messageId: messageId,
+            },
         });
     }
 
     // Community message notifications
     static async notifyNewCommunityMessage(messageData) {
-        const { senderId, communityId, content, messageId, senderName, communityName } = messageData;
+        const { senderId, communityId, messageId, senderName, communityName } =
+            messageData;
 
         // Get community owners, organizers, and moderators
-        const db = require('../../config/db');
-        const result = await db.query(`
+        const db = require("../../config/db");
+        const result = await db.query(
+            `
             SELECT user_id
             FROM community_members
             WHERE community_id = $1 AND role IN ('owner', 'organizer', 'moderator')
             AND user_id != $2
-        `, [communityId, senderId]);
+        `,
+            [communityId, senderId]
+        );
 
-        const notifications = result.rows.map(row => ({
+        const notifications = result.rows.map((row) => ({
             userId: row.user_id,
-            type: 'new_community_message',
-            triggerEntityType: 'message',
+            type: "new_community_message",
+            triggerEntityType: "message",
             triggerEntityId: messageId,
             actorUserId: senderId,
-            title: `New message in ${communityName}`,
-            message: `${senderName}: ${content.length > 100 ? content.substring(0, 100) + '...' : content}`,
+            title: `New message`,
+            message: `${senderName} from the community ${communityName} sent you a message`,
             metadata: {
                 senderId: senderId,
                 communityId: communityId,
                 messageId: messageId,
-                communityName: communityName
-            }
+                communityName: communityName,
+            },
         }));
 
         return await this.createBulkNotifications(notifications);
@@ -128,20 +140,24 @@ class NotificationService {
 
     // Event notifications
     static async notifyNewEvent(eventData) {
-        const { creatorId, communityId, eventId, eventTitle, communityName } = eventData;
+        const { creatorId, communityId, eventId, eventTitle, communityName } =
+            eventData;
 
         // Get all community members
-        const db = require('../../config/db');
-        const result = await db.query(`
+        const db = require("../../config/db");
+        const result = await db.query(
+            `
             SELECT user_id
             FROM community_members
             WHERE community_id = $1 AND user_id != $2
-        `, [communityId, creatorId]);
+        `,
+            [communityId, creatorId]
+        );
 
-        const notifications = result.rows.map(row => ({
+        const notifications = result.rows.map((row) => ({
             userId: row.user_id,
-            type: 'new_event',
-            triggerEntityType: 'event',
+            type: "new_event",
+            triggerEntityType: "event",
             triggerEntityId: eventId,
             actorUserId: creatorId,
             title: `New event: ${eventTitle}`,
@@ -150,8 +166,8 @@ class NotificationService {
                 eventId: eventId,
                 communityId: communityId,
                 eventTitle: eventTitle,
-                communityName: communityName
-            }
+                communityName: communityName,
+            },
         }));
 
         return await this.createBulkNotifications(notifications);
@@ -159,30 +175,34 @@ class NotificationService {
 
     // Community join request notifications
     static async notifyJoinRequest(requestData) {
-        const { userId, communityId, communityName, requesterName } = requestData;
+        const { userId, communityId, communityName, requesterName } =
+            requestData;
 
         // Get community owners, organizers, and moderators
-        const db = require('../../config/db');
-        const result = await db.query(`
+        const db = require("../../config/db");
+        const result = await db.query(
+            `
             SELECT user_id
             FROM community_members
             WHERE community_id = $1 AND role IN ('owner', 'organizer', 'moderator')
-        `, [communityId]);
+        `,
+            [communityId]
+        );
 
-        const notifications = result.rows.map(row => ({
+        const notifications = result.rows.map((row) => ({
             userId: row.user_id,
-            type: 'community_join_request',
-            triggerEntityType: 'community',
+            type: "community_join_request",
+            triggerEntityType: "community",
             triggerEntityId: communityId,
             actorUserId: userId,
-            title: `New join request for ${communityName}`,
+            title: `Community join request`,
             message: `${requesterName} wants to join ${communityName}`,
             metadata: {
                 requesterId: userId,
                 communityId: communityId,
                 communityName: communityName,
-                requesterName: requesterName
-            }
+                requesterName: requesterName,
+            },
         }));
 
         return await this.createBulkNotifications(notifications);
@@ -192,18 +212,20 @@ class NotificationService {
     static async notifyJoinRequestResponse(responseData) {
         const { userId, communityId, communityName, approved } = responseData;
 
-        const type = approved ? 'join_request_approved' : 'join_request_rejected';
-        const title = approved ?
-            `Welcome to ${communityName}!` :
-            `Join request declined for ${communityName}`;
-        const message = approved ?
-            `Your request to join ${communityName} has been approved` :
-            `Your request to join ${communityName} has been declined`;
+        const type = approved
+            ? "join_request_approved"
+            : "join_request_rejected";
+        const title = approved
+            ? `Welcome to ${communityName}!`
+            : `Join request declined for ${communityName}`;
+        const message = approved
+            ? `Your request to join ${communityName} has been approved`
+            : `Your request to join ${communityName} has been declined`;
 
         return await this.createNotification({
             userId: userId,
             type: type,
-            triggerEntityType: 'community',
+            triggerEntityType: "community",
             triggerEntityId: communityId,
             actorUserId: null, // System notification
             title: title,
@@ -211,37 +233,51 @@ class NotificationService {
             metadata: {
                 communityId: communityId,
                 communityName: communityName,
-                approved: approved
-            }
+                approved: approved,
+            },
         });
     }
 
     // Post notifications
     static async notifyNewPost(postData) {
-        const { authorId, communityId, postId, content, communityName, authorName } = postData;
+        const {
+            authorId,
+            communityId,
+            postId,
+            content,
+            communityName,
+            authorName,
+        } = postData;
 
         // Get all community members
-        const db = require('../../config/db');
-        const result = await db.query(`
+        const db = require("../../config/db");
+        const result = await db.query(
+            `
             SELECT user_id
             FROM community_members
             WHERE community_id = $1 AND user_id != $2
-        `, [communityId, authorId]);
+        `,
+            [communityId, authorId]
+        );
 
-        const notifications = result.rows.map(row => ({
+        const notifications = result.rows.map((row) => ({
             userId: row.user_id,
-            type: 'new_post',
-            triggerEntityType: 'post',
+            type: "new_post",
+            triggerEntityType: "post",
             triggerEntityId: postId,
             actorUserId: authorId,
             title: `New post in ${communityName}`,
-            message: `${authorName}: ${content.length > 100 ? content.substring(0, 100) + '...' : content}`,
+            message: `${authorName}: ${
+                content.length > 100
+                    ? content.substring(0, 100) + "..."
+                    : content
+            }`,
             metadata: {
                 postId: postId,
                 communityId: communityId,
                 communityName: communityName,
-                authorName: authorName
-            }
+                authorName: authorName,
+            },
         }));
 
         return await this.createBulkNotifications(notifications);
@@ -252,17 +288,20 @@ class NotificationService {
         const { communityId, title, message, communityName } = announcementData;
 
         // Get all community members
-        const db = require('../../config/db');
-        const result = await db.query(`
+        const db = require("../../config/db");
+        const result = await db.query(
+            `
             SELECT user_id
             FROM community_members
             WHERE community_id = $1
-        `, [communityId]);
+        `,
+            [communityId]
+        );
 
-        const notifications = result.rows.map(row => ({
+        const notifications = result.rows.map((row) => ({
             userId: row.user_id,
-            type: 'community_announcement',
-            triggerEntityType: 'community',
+            type: "community_announcement",
+            triggerEntityType: "community",
             triggerEntityId: communityId,
             actorUserId: null, // System notification
             title: `Announcement: ${title}`,
@@ -270,8 +309,8 @@ class NotificationService {
             metadata: {
                 communityId: communityId,
                 communityName: communityName,
-                announcementTitle: title
-            }
+                announcementTitle: title,
+            },
         }));
 
         return await this.createBulkNotifications(notifications);
