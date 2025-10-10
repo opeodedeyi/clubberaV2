@@ -103,7 +103,8 @@ class MessageModel {
             text: `
                 SELECT m.*,
                        sender.full_name as sender_name,
-                       sender.unique_url as sender_unique_url
+                       sender.unique_url as sender_unique_url,
+                       (m.sender_id = $1) as is_sent_by_me
                 FROM messages m
                 LEFT JOIN users sender ON m.sender_id = sender.id
                 WHERE ${whereConditions.join(" AND ")}
@@ -172,7 +173,8 @@ class MessageModel {
                 SELECT m.*,
                        sender.full_name as sender_name,
                        sender.unique_url as sender_unique_url,
-                       cm.role as sender_role
+                       cm.role as sender_role,
+                       (m.sender_id = $${++paramCount}) as is_sent_by_me
                 FROM messages m
                 LEFT JOIN users sender ON m.sender_id = sender.id
                 LEFT JOIN community_members cm ON m.sender_id = cm.user_id AND m.recipient_id = cm.community_id
@@ -180,7 +182,7 @@ class MessageModel {
                 ORDER BY m.created_at DESC
                 LIMIT $${++paramCount} OFFSET $${++paramCount}
             `,
-            values: [...values, limit, offset],
+            values: [...values, userId, limit, offset],
         };
 
         const result = await db.query(query.text, query.values);
@@ -282,6 +284,7 @@ class MessageModel {
                             ELSE NULL END
                     END as conversation_profile_image,
                     sender.full_name as sender_name,
+                    (lm.sender_id = $1) as is_sent_by_me,
                     COALESCE(unread.unread_count, 0) as unread_count
                 FROM latest_messages lm
                 LEFT JOIN users u ON lm.recipient_type = 'user' AND lm.conversation_with_id = u.id
