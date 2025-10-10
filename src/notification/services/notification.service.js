@@ -173,18 +173,184 @@ class NotificationService {
         return await this.createBulkNotifications(notifications);
     }
 
-    // Community join request notifications
-    static async notifyJoinRequest(requestData) {
-        const { userId, communityId, communityName, requesterName } =
-            requestData;
+    // Event update notification
+    static async notifyEventUpdate(eventData) {
+        const { eventId, eventTitle, updateMessage, communityName } = eventData;
 
-        // Get community owners, organizers, and moderators
+        // Get all attendees (attending, maybe, and waitlisted)
+        const db = require("../../config/db");
+        const result = await db.query(
+            `
+            SELECT user_id
+            FROM event_attendees
+            WHERE event_id = $1 AND status IN ('attending', 'maybe', 'waitlisted')
+        `,
+            [eventId]
+        );
+
+        const notifications = result.rows.map((row) => ({
+            userId: row.user_id,
+            type: "event_updated",
+            triggerEntityType: "event",
+            triggerEntityId: eventId,
+            actorUserId: null,
+            title: `Event updated`,
+            message:
+                updateMessage || `The event "${eventTitle}" has been updated`,
+            metadata: {
+                eventId: eventId,
+                eventTitle: eventTitle,
+                communityName: communityName,
+            },
+        }));
+
+        return await this.createBulkNotifications(notifications);
+    }
+
+    // Waitlist promotion notification
+    static async notifyWaitlistPromotion(promotionData) {
+        const { userId, eventId, eventTitle, communityName } = promotionData;
+
+        return await this.createNotification({
+            userId: userId,
+            type: "waitlist_promoted",
+            triggerEntityType: "event",
+            triggerEntityId: eventId,
+            actorUserId: null,
+            title: `Event RSVP`,
+            message: `A spot has opened up for "${eventTitle}" and you've been moved from the waitlist to attending!`,
+            metadata: {
+                eventId: eventId,
+                eventTitle: eventTitle,
+                communityName: communityName,
+            },
+        });
+    }
+
+    // Event cancellation notification
+    static async notifyEventCancellation(eventData) {
+        const { eventId, eventTitle, communityName } = eventData;
+
+        // Get all attendees (attending, maybe, and waitlisted)
+        const db = require("../../config/db");
+        const result = await db.query(
+            `
+            SELECT user_id
+            FROM event_attendees
+            WHERE event_id = $1 AND status IN ('attending', 'maybe', 'waitlisted')
+        `,
+            [eventId]
+        );
+
+        const notifications = result.rows.map((row) => ({
+            userId: row.user_id,
+            type: "event_cancelled",
+            triggerEntityType: "event",
+            triggerEntityId: eventId,
+            actorUserId: null,
+            title: `Event cancelled`,
+            message: `The event "${eventTitle}" in ${communityName} has been cancelled`,
+            metadata: {
+                eventId: eventId,
+                eventTitle: eventTitle,
+                communityName: communityName,
+            },
+        }));
+
+        return await this.createBulkNotifications(notifications);
+    }
+
+    // Event RSVP notification (notify event creator/organizers)
+    static async notifyEventRSVP(rsvpData) {
+        const { userId, userName, eventId, eventTitle, communityId, status } =
+            rsvpData;
+
+        // Only notify for "attending" status
+        if (status !== "attending") {
+            return;
+        }
+
+        // Get event creator and community organizers/owners
+        const db = require("../../config/db");
+        const result = await db.query(
+            `
+            SELECT DISTINCT cm.user_id
+            FROM community_members cm
+            JOIN posts p ON p.community_id = cm.community_id
+            JOIN events e ON e.post_id = p.id
+            WHERE e.id = $1
+            AND (cm.role IN ('owner', 'organizer') OR p.user_id = cm.user_id)
+            AND cm.user_id != $2
+        `,
+            [eventId, userId]
+        );
+
+        const notifications = result.rows.map((row) => ({
+            userId: row.user_id,
+            type: "event_rsvp",
+            triggerEntityType: "event",
+            triggerEntityId: eventId,
+            actorUserId: userId,
+            title: `New RSVP`,
+            message: `${userName} is attending the event "${eventTitle}"`,
+            metadata: {
+                eventId: eventId,
+                eventTitle: eventTitle,
+                attendeeId: userId,
+                attendeeName: userName,
+            },
+        }));
+
+        return await this.createBulkNotifications(notifications);
+    }
+
+    // User joined public community notification
+    static async notifyUserJoinedCommunity(joinData) {
+        const { userId, userName, communityId, communityName } = joinData;
+
+        // Get community owners and organizers only
         const db = require("../../config/db");
         const result = await db.query(
             `
             SELECT user_id
             FROM community_members
-            WHERE community_id = $1 AND role IN ('owner', 'organizer', 'moderator')
+            WHERE community_id = $1 AND role IN ('owner', 'organizer')
+            AND user_id != $2
+        `,
+            [communityId, userId]
+        );
+
+        const notifications = result.rows.map((row) => ({
+            userId: row.user_id,
+            type: "user_joined_community",
+            triggerEntityType: "community",
+            triggerEntityId: communityId,
+            actorUserId: userId,
+            title: `New member`,
+            message: `New member alert! ${userName} just joined the ${communityName}`,
+            metadata: {
+                newMemberId: userId,
+                newMemberName: userName,
+                communityId: communityId,
+                communityName: communityName,
+            },
+        }));
+
+        return await this.createBulkNotifications(notifications);
+    }
+
+    // Community join request notifications
+    static async notifyJoinRequest(requestData) {
+        const { userId, communityId, communityName, requesterName } =
+            requestData;
+
+        // Get community owners and organizers only
+        const db = require("../../config/db");
+        const result = await db.query(
+            `
+            SELECT user_id
+            FROM community_members
+            WHERE community_id = $1 AND role IN ('owner', 'organizer')
         `,
             [communityId]
         );
@@ -196,7 +362,7 @@ class NotificationService {
             triggerEntityId: communityId,
             actorUserId: userId,
             title: `Community join request`,
-            message: `${requesterName} wants to join ${communityName}`,
+            message: `${requesterName} wants to join your community ${communityName}`,
             metadata: {
                 requesterId: userId,
                 communityId: communityId,
@@ -215,9 +381,7 @@ class NotificationService {
         const type = approved
             ? "join_request_approved"
             : "join_request_rejected";
-        const title = approved
-            ? `Welcome to ${communityName}!`
-            : `Join request declined for ${communityName}`;
+        const title = approved ? `Joined community` : `Request declined`;
         const message = approved
             ? `Your request to join ${communityName} has been approved`
             : `Your request to join ${communityName} has been declined`;

@@ -719,12 +719,23 @@ CREATE TABLE notifications (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     type VARCHAR(50) NOT NULL CHECK (type IN (
-        'new_message', 'new_community_message', 'message_reply',
-        'community_join_request', 'join_request_approved', 'join_request_rejected',
-        'new_event', 'event_updated', 'event_cancelled',
-        'community_announcement', 'new_post', 'post_reply',
-        'event_reminder', 'community_role_changed'
+        'new_message',
+        'new_community_message',
+        'message_reply',
+        'community_join_request',
+        'join_request_approved',
+        'join_request_rejected',
+        'community_announcement',
+        'community_role_changed',
+        'user_joined_community',
+        'new_event', 'event_update',
+        'event_updated', 'event_cancelled',
+        'event_reminder', 'waitlist_promoted',
+        'event_rsvp',
+        'community_announcement', 'new_post',
+        'post_reply', 'community_role_changed'
     )),
+    -- waitlist_promoted, event_rsvp
     trigger_entity_type VARCHAR(50) NOT NULL CHECK (trigger_entity_type IN (
         'message', 'event', 'post', 'community', 'community_join_request'
     )),

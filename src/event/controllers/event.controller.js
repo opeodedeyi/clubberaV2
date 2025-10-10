@@ -113,6 +113,21 @@ class EventController {
             // Get the complete event with cover image
             const completeEvent = await EventModel.getEventById(result.event.id);
 
+            // Send notification to all community members
+            try {
+                const NotificationService = require("../../notification/services/notification.service");
+                await NotificationService.notifyNewEvent({
+                    creatorId: userId,
+                    communityId: communityId,
+                    eventId: completeEvent.id,
+                    eventTitle: completeEvent.title,
+                    communityName: await this._getCommunityName(communityId),
+                });
+            } catch (error) {
+                console.error("Error sending new event notification:", error);
+                // Don't fail the request if notification fails
+            }
+
             res.status(201).json({
                 status: "success",
                 data: {
@@ -263,6 +278,20 @@ class EventController {
                 updatedEvent.id
             );
 
+            // Send notification to all attendees about the update
+            try {
+                const NotificationService = require("../../notification/services/notification.service");
+                await NotificationService.notifyEventUpdate({
+                    eventId: completeEvent.id,
+                    eventTitle: completeEvent.title,
+                    updateMessage: `The event "${completeEvent.title}" has been updated. Please check the new details.`,
+                    communityName: await this._getCommunityName(await this._getEventCommunityId(completeEvent.id)),
+                });
+            } catch (error) {
+                console.error("Error sending event update notification:", error);
+                // Don't fail the request if notification fails
+            }
+
             res.status(200).json({
                 status: "success",
                 data: {
@@ -284,6 +313,23 @@ class EventController {
 
             if (!canManage.allowed) {
                 throw new ApiError(canManage.reason, 403);
+            }
+
+            // Get event details before deletion for notification
+            const event = await EventModel.getEventById(parseInt(eventId));
+            const communityId = await this._getEventCommunityId(parseInt(eventId));
+
+            // Send cancellation notification to all attendees
+            try {
+                const NotificationService = require("../../notification/services/notification.service");
+                await NotificationService.notifyEventCancellation({
+                    eventId: event.id,
+                    eventTitle: event.title,
+                    communityName: await this._getCommunityName(communityId),
+                });
+            } catch (error) {
+                console.error("Error sending event cancellation notification:", error);
+                // Continue with deletion even if notification fails
             }
 
             await EventModel.deleteEvent(parseInt(eventId));
@@ -433,6 +479,38 @@ class EventController {
             });
         } catch (error) {
             next(error);
+        }
+    }
+
+    // Helper function to get community name
+    async _getCommunityName(communityId) {
+        try {
+            const CommunityModel = require("../../community/models/community.model");
+            const community = await CommunityModel.findByIdentifier(communityId);
+            return community ? community.name : "Community";
+        } catch (error) {
+            console.error("Error fetching community name:", error);
+            return "Community";
+        }
+    }
+
+    // Helper function to get event's community ID
+    async _getEventCommunityId(eventId) {
+        try {
+            const db = require("../../config/db");
+            const result = await db.query(
+                `
+                SELECT p.community_id
+                FROM events e
+                JOIN posts p ON e.post_id = p.id
+                WHERE e.id = $1
+                `,
+                [eventId]
+            );
+            return result.rows[0]?.community_id || null;
+        } catch (error) {
+            console.error("Error fetching event community ID:", error);
+            return null;
         }
     }
 

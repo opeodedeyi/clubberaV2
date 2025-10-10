@@ -200,23 +200,33 @@ class AttendanceModel {
 
                         // If event has a waitlist, promote the next person
                         if (event.max_attendees !== null) {
-                            operations.push({
-                                text: `
-                                    WITH next_waitlisted AS (
-                                        SELECT id, user_id
-                                        FROM event_attendees
-                                        WHERE event_id = $1 AND status = 'waitlisted'
-                                        ORDER BY created_at ASC
-                                        LIMIT 1
-                                    )
-                                    UPDATE event_attendees
-                                    SET status = 'attending', updated_at = NOW()
-                                    FROM next_waitlisted
-                                    WHERE event_attendees.id = next_waitlisted.id
-                                    RETURNING event_attendees.user_id;
-                                `,
-                                values: [eventId],
-                            });
+                            // First, get the next waitlisted person
+                            const nextWaitlistedQuery = `
+                                SELECT user_id
+                                FROM event_attendees
+                                WHERE event_id = $1 AND status = 'waitlisted'
+                                ORDER BY created_at ASC
+                                LIMIT 1
+                            `;
+                            const nextWaitlistedResult = await db.query(nextWaitlistedQuery, [eventId]);
+
+                            if (nextWaitlistedResult.rows.length > 0) {
+                                const promotedUserId = nextWaitlistedResult.rows[0].user_id;
+
+                                operations.push({
+                                    text: `
+                                        UPDATE event_attendees
+                                        SET status = 'attending', updated_at = NOW()
+                                        WHERE event_id = $1 AND user_id = $2 AND status = 'waitlisted'
+                                        RETURNING *;
+                                    `,
+                                    values: [eventId, promotedUserId],
+                                });
+
+                                // Send notification to promoted user (after transaction)
+                                // We'll handle this after the transaction completes
+                                this._promotedUserId = promotedUserId;
+                            }
 
                             // Don't increment counter here because we just decremented it and are replacing one attendee with another
                         }
@@ -238,6 +248,37 @@ class AttendanceModel {
 
             // Execute transaction
             await db.executeTransaction(operations);
+
+            // Send waitlist promotion notification if someone was promoted
+            if (this._promotedUserId) {
+                try {
+                    const NotificationService = require("../../notification/services/notification.service");
+
+                    // Get event details
+                    const eventDetailsQuery = `
+                        SELECT e.id, e.title, p.community_id, c.name as community_name
+                        FROM events e
+                        JOIN posts p ON e.post_id = p.id
+                        JOIN communities c ON p.community_id = c.id
+                        WHERE e.id = $1
+                    `;
+                    const eventDetailsResult = await db.query(eventDetailsQuery, [eventId]);
+                    const eventDetails = eventDetailsResult.rows[0];
+
+                    await NotificationService.notifyWaitlistPromotion({
+                        userId: this._promotedUserId,
+                        eventId: eventDetails.id,
+                        eventTitle: eventDetails.title,
+                        communityName: eventDetails.community_name,
+                    });
+
+                    // Clear the promoted user ID
+                    this._promotedUserId = null;
+                } catch (error) {
+                    console.error("Error sending waitlist promotion notification:", error);
+                    // Don't throw error, as the promotion was successful
+                }
+            }
 
             // Return the current status
             return { status };
