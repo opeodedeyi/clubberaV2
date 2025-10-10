@@ -181,28 +181,37 @@ class MessageService {
             if (message.recipient_type === "user") {
                 // Send to specific user
                 const recipientId = message.recipient_id;
-                socketManager.sendNotificationToUser(recipientId, {
-                    type: "new_message",
-                    message: message,
-                });
 
-                // Also emit the new_message event
                 if (socketManager.io) {
+                    console.log(`[Socket.IO] Emitting new_message to user_${recipientId}`);
+
+                    // Send notification
+                    socketManager.sendNotificationToUser(recipientId, {
+                        type: "new_message",
+                        message: message,
+                    });
+
+                    // Also emit the new_message event
                     socketManager.io
                         .to(`user_${recipientId}`)
                         .emit("new_message", {
                             message: message,
                         });
+                } else {
+                    console.error("[Socket.IO] socketManager.io is undefined - Socket.IO may not be initialized yet");
                 }
             } else if (message.recipient_type === "community") {
                 // Send to community owners, organizers, and moderators
                 const communityId = message.recipient_id;
                 if (socketManager.io) {
+                    console.log(`[Socket.IO] Emitting new_community_message to community_${communityId}_organizers`);
                     socketManager.io
                         .to(`community_${communityId}_organizers`)
                         .emit("new_community_message", {
                             message: message,
                         });
+                } else {
+                    console.error("[Socket.IO] socketManager.io is undefined - Socket.IO may not be initialized yet");
                 }
             }
         } catch (error) {
