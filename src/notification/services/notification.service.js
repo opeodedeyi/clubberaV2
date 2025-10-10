@@ -70,11 +70,14 @@ class NotificationService {
     static sendRealTimeNotification(notification) {
         try {
             if (socketManager.io) {
+                console.log(`[Socket.IO] Emitting new_notification to user_${notification.user_id}`);
                 socketManager.io
                     .to(`user_${notification.user_id}`)
                     .emit("new_notification", {
                         notification: notification,
                     });
+            } else {
+                console.error("[Socket.IO] socketManager.io is undefined - Socket.IO may not be initialized yet");
             }
         } catch (error) {
             console.error("Error sending real-time notification:", error);
