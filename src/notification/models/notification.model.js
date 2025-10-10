@@ -146,11 +146,22 @@ class NotificationModel {
                 const otherTime = new Date(other.created_at).getTime();
 
                 // Check if notifications should be grouped
-                const shouldGroup =
-                    notification.type === other.type &&
-                    notification.trigger_entity_type === other.trigger_entity_type &&
-                    notification.trigger_entity_id === other.trigger_entity_id &&
-                    Math.abs(notificationTime - otherTime) <= timeWindow;
+                let shouldGroup;
+
+                // Special grouping for messages: group by sender (actor), not message ID
+                if (notification.type === 'new_message' || notification.type === 'new_community_message') {
+                    shouldGroup =
+                        notification.type === other.type &&
+                        notification.actor_user_id === other.actor_user_id &&
+                        Math.abs(notificationTime - otherTime) <= timeWindow;
+                } else {
+                    // Default grouping: same type, entity type, and entity ID
+                    shouldGroup =
+                        notification.type === other.type &&
+                        notification.trigger_entity_type === other.trigger_entity_type &&
+                        notification.trigger_entity_id === other.trigger_entity_id &&
+                        Math.abs(notificationTime - otherTime) <= timeWindow;
+                }
 
                 if (shouldGroup) {
                     similar.push(other);
@@ -178,18 +189,28 @@ class NotificationModel {
 
                 // Smart title generation based on notification type
                 let groupedTitle;
-                if (notification.title.includes('from')) {
+                let groupedMessage;
+
+                if (notification.type === 'new_message' || notification.type === 'new_community_message') {
+                    // Message notifications: show count from same sender
+                    groupedTitle = `${totalCount} new messages`;
+                    groupedMessage = `You have received ${totalCount} new messages from ${notification.actor_name}`;
+                } else if (notification.title.includes('from')) {
                     // Message-type notifications: "New message from [actor]"
                     groupedTitle = notification.title.replace(/from .+$/, `from ${actorText}`);
+                    groupedMessage = notification.message;
                 } else if (notification.type === 'community_join_request') {
                     // Join requests: Replace community name pattern
                     groupedTitle = `${totalCount} join requests for ` + notification.title.replace(/^New join request for /, '');
+                    groupedMessage = notification.message;
                 } else if (notification.type === 'new_event' || notification.type === 'new_post') {
                     // Events/Posts: Keep original title, add count
                     groupedTitle = `${totalCount} new ${notification.type.replace('new_', '')}s`;
+                    groupedMessage = notification.message;
                 } else {
                     // Default: Add actor text to beginning
                     groupedTitle = `${actorText}: ${notification.title}`;
+                    groupedMessage = notification.message;
                 }
 
                 grouped.push({
@@ -198,7 +219,7 @@ class NotificationModel {
                     trigger_entity_type: notification.trigger_entity_type,
                     trigger_entity_id: notification.trigger_entity_id,
                     title: groupedTitle,
-                    message: notification.message,
+                    message: groupedMessage,
                     metadata: notification.metadata,
                     is_read: notification.is_read && similar.every(s => s.is_read),
                     created_at: notification.created_at,
