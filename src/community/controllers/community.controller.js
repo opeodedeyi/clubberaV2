@@ -281,6 +281,8 @@ class CommunityController {
                 return next(new ApiError("Authentication required", 401));
             }
 
+            console.log(req.user);
+
             const communityId = req.params.id;
             const userId = req.user.id;
 
@@ -323,11 +325,49 @@ class CommunityController {
 
             // For private communities, create a join request
             if (community.is_private) {
+                // Check if there's already a pending request
+                const existingRequest =
+                    await communityModel.getJoinRequestByUser(
+                        communityId,
+                        userId
+                    );
+
+                if (existingRequest && existingRequest.status === "pending") {
+                    return res.json({
+                        status: "success",
+                        message:
+                            "You already have a pending join request for this community",
+                        data: {
+                            membership_status: "pending",
+                            community_id: parseInt(communityId),
+                            user_id: userId,
+                            request: existingRequest,
+                        },
+                    });
+                }
+
                 const joinRequest = await communityModel.createJoinRequest({
                     community_id: communityId,
                     user_id: userId,
                     message: req.body.message,
                 });
+
+                // Send notification to community owners and organizers (only for new requests)
+                try {
+                    const NotificationService = require("../../notification/services/notification.service");
+                    await NotificationService.notifyJoinRequest({
+                        userId: userId,
+                        communityId: communityId,
+                        communityName: community.name,
+                        requesterName: req.user.fullName || req.user.full_name,
+                    });
+                } catch (error) {
+                    console.error(
+                        "Error sending join request notification:",
+                        error
+                    );
+                    // Don't fail the request if notification fails
+                }
 
                 return res.json({
                     status: "success",
@@ -346,6 +386,23 @@ class CommunityController {
                 community_id: communityId,
                 user_id: userId,
             });
+
+            // Send notification to community owners and organizers
+            try {
+                const NotificationService = require("../../notification/services/notification.service");
+                await NotificationService.notifyUserJoinedCommunity({
+                    userId: userId,
+                    userName: req.user.fullName || req.user.full_name,
+                    communityId: communityId,
+                    communityName: community.name,
+                });
+            } catch (error) {
+                console.error(
+                    "Error sending user joined community notification:",
+                    error
+                );
+                // Don't fail the request if notification fails
+            }
 
             res.json({
                 status: "success",
@@ -498,13 +555,13 @@ class CommunityController {
                 );
             }
 
-            const isAdmin = await communityModel.checkMemberRole(
+            const canRespond = await communityModel.checkMemberRole(
                 communityId,
                 userId,
-                ["owner", "organizer", "moderator"]
+                ["owner", "organizer"]
             );
 
-            if (!isAdmin) {
+            if (!canRespond) {
                 return next(
                     new ApiError(
                         "You do not have permission to respond to join requests",
@@ -536,6 +593,23 @@ class CommunityController {
                     user_id: updatedRequest.user_id,
                 });
 
+                // Send approval notification to the requester
+                try {
+                    const NotificationService = require("../../notification/services/notification.service");
+                    await NotificationService.notifyJoinRequestResponse({
+                        userId: updatedRequest.user_id,
+                        communityId: communityId,
+                        communityName: community.name,
+                        approved: true,
+                    });
+                } catch (error) {
+                    console.error(
+                        "Error sending join request approval notification:",
+                        error
+                    );
+                    // Don't fail the request if notification fails
+                }
+
                 res.json({
                     status: "success",
                     message:
@@ -543,6 +617,23 @@ class CommunityController {
                     data: updatedRequest,
                 });
             } else {
+                // Send rejection notification to the requester
+                try {
+                    const NotificationService = require("../../notification/services/notification.service");
+                    await NotificationService.notifyJoinRequestResponse({
+                        userId: updatedRequest.user_id,
+                        communityId: communityId,
+                        communityName: community.name,
+                        approved: false,
+                    });
+                } catch (error) {
+                    console.error(
+                        "Error sending join request rejection notification:",
+                        error
+                    );
+                    // Don't fail the request if notification fails
+                }
+
                 res.json({
                     status: "success",
                     message: "Join request rejected",

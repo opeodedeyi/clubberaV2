@@ -62,6 +62,30 @@ class AttendanceController {
                 status
             );
 
+            // Send RSVP notification to event organizers (only for "attending" status)
+            if (status === 'attending' && result.status === 'attending') {
+                try {
+                    const NotificationService = require("../../notification/services/notification.service");
+                    const EventModel = require("../models/event.model");
+
+                    // Get event details
+                    const event = await EventModel.getEventById(parseInt(eventId));
+                    const communityId = await this._getEventCommunityId(parseInt(eventId));
+
+                    await NotificationService.notifyEventRSVP({
+                        userId: userId,
+                        userName: req.user.full_name,
+                        eventId: parseInt(eventId),
+                        eventTitle: event.title,
+                        communityId: communityId,
+                        status: 'attending',
+                    });
+                } catch (error) {
+                    console.error("Error sending RSVP notification:", error);
+                    // Don't fail the request if notification fails
+                }
+            }
+
             res.status(200).json({
                 status: "success",
                 data: result,
@@ -115,6 +139,26 @@ class AttendanceController {
             });
         } catch (error) {
             next(error);
+        }
+    }
+
+    // Helper function to get event's community ID
+    async _getEventCommunityId(eventId) {
+        try {
+            const db = require("../../config/db");
+            const result = await db.query(
+                `
+                SELECT p.community_id
+                FROM events e
+                JOIN posts p ON e.post_id = p.id
+                WHERE e.id = $1
+                `,
+                [eventId]
+            );
+            return result.rows[0]?.community_id || null;
+        } catch (error) {
+            console.error("Error fetching event community ID:", error);
+            return null;
         }
     }
 }
