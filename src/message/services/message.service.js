@@ -181,32 +181,49 @@ class MessageService {
             if (message.recipient_type === "user") {
                 // Send to specific user
                 const recipientId = message.recipient_id;
+                const senderId = message.sender_id;
 
                 if (socketManager.io) {
-                    console.log(`[Socket.IO] Emitting new_message to user_${recipientId}`);
+                    console.log(`[Socket.IO] Emitting new_message to user_${recipientId} and user_${senderId}`);
 
-                    // Send notification
-                    socketManager.sendNotificationToUser(recipientId, {
-                        type: "new_message",
-                        message: message,
-                    });
-
-                    // Also emit the new_message event
+                    // Send to recipient
                     socketManager.io
                         .to(`user_${recipientId}`)
                         .emit("new_message", {
                             message: message,
                         });
+
+                    // ALSO send to sender so they see it in real-time
+                    socketManager.io
+                        .to(`user_${senderId}`)
+                        .emit("new_message", {
+                            message: message,
+                        });
+
+                    // Send notification to recipient only (not sender)
+                    socketManager.sendNotificationToUser(recipientId, {
+                        type: "new_message",
+                        message: message,
+                    });
                 } else {
                     console.error("[Socket.IO] socketManager.io is undefined - Socket.IO may not be initialized yet");
                 }
             } else if (message.recipient_type === "community") {
                 // Send to community owners, organizers, and moderators
                 const communityId = message.recipient_id;
+                const senderId = message.sender_id;
+
                 if (socketManager.io) {
                     console.log(`[Socket.IO] Emitting new_community_message to community_${communityId}_organizers`);
                     socketManager.io
                         .to(`community_${communityId}_organizers`)
+                        .emit("new_community_message", {
+                            message: message,
+                        });
+
+                    // Also send to sender if they're not already in the organizers room
+                    socketManager.io
+                        .to(`user_${senderId}`)
                         .emit("new_community_message", {
                             message: message,
                         });
