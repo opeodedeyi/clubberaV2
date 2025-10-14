@@ -8,9 +8,6 @@ const PollValidator = require("../validators/poll.validator");
 
 const router = express.Router();
 
-// Get a specific poll
-router.get("/polls/:pollId", optionalAuth, PollController.getPoll);
-
 // Create a new poll
 router.post(
     "/polls",

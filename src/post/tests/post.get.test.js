@@ -57,6 +57,8 @@ describe("PostController - Get Post", () => {
             author_name: "Test User",
             author_url: "test-user",
             author_image: null,
+            community_name: "Test Community",
+            community_url: "test-community",
             likes_count: 0,
             replies_count: 0,
             created_at: new Date(),
@@ -82,6 +84,7 @@ describe("PostController - Get Post", () => {
         PollModel.getPollDetails.mockResolvedValue({
             id: 10,
             userHasVoted: false,
+            userVote: null,
             poll_data: {
                 question: "Test poll question",
                 options: [
@@ -89,6 +92,7 @@ describe("PostController - Get Post", () => {
                     { text: "Option 2", votes: 0 },
                 ],
                 settings: { allowMultipleVotes: false },
+                votes: [],
             },
         });
     });
@@ -133,9 +137,12 @@ describe("PostController - Get Post", () => {
                         { text: "Option 1", votes: 0 },
                         { text: "Option 2", votes: 0 },
                     ],
+                    votes: [],
                 },
                 author_name: "Test User",
                 author_url: "test-user",
+                community_name: "Test Community",
+                community_url: "test-community",
                 created_at: new Date(),
                 updated_at: new Date(),
             });
@@ -148,6 +155,7 @@ describe("PostController - Get Post", () => {
                     data: expect.objectContaining({
                         content_type: "poll",
                         userHasVoted: false,
+                        userVote: null,
                     }),
                 })
             );

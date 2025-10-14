@@ -79,6 +79,44 @@ class CommunityPermissions {
     }
 
     /**
+     * Check if user can create polls in community
+     * Rules:
+     * - Owners can always create polls
+     * - Organizers can always create polls
+     * - Moderators/Members cannot create polls
+     */
+    static async canCreatePolls(userId, communityId) {
+        try {
+            const { role, isMember } = await this.getUserRole(userId, communityId);
+
+            if (!isMember) {
+                return {
+                    allowed: false,
+                    reason: "You must be a member of this community to create polls"
+                };
+            }
+
+            // Owners and organizers can create polls
+            if (role === 'owner' || role === 'organizer') {
+                return { allowed: true };
+            }
+
+            // Moderators and members cannot create polls
+            return {
+                allowed: false,
+                reason: "Only community owners and organizers can create polls"
+            };
+
+        } catch (error) {
+            console.error('Error checking poll creation permissions:', error);
+            return {
+                allowed: false,
+                reason: "Unable to verify permissions. Please try again."
+            };
+        }
+    }
+
+    /**
      * Check if user can create events in community
      * Rules:
      * - Owners can always create events

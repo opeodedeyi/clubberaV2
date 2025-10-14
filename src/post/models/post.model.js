@@ -42,33 +42,39 @@ class PostModel {
 
     async findById(postId) {
         const query = `
-            SELECT 
+            SELECT
                 p.*,
-                u.full_name as author_name,
-                u.unique_url as author_url,
+                json_build_object(
+                    'id', u.id,
+                    'full_name', u.full_name,
+                    'unique_url', u.unique_url,
+                    'profile_image', (
+                        SELECT json_build_object(
+                            'id', i.id,
+                            'provider', i.provider,
+                            'key', i.key,
+                            'alt_text', i.alt_text
+                        )
+                        FROM images i
+                        WHERE i.entity_type = 'user' AND i.entity_id = u.id AND i.image_type = 'profile'
+                        LIMIT 1
+                    )
+                ) as user,
+                c.name as community_name,
+                c.unique_url as community_url,
                 (
-                SELECT json_build_object(
-                    'id', i.id,
-                    'provider', i.provider,
-                    'key', i.key,
-                    'alt_text', i.alt_text
-                )
-                FROM images i
-                WHERE i.entity_type = 'user' AND i.entity_id = u.id AND i.image_type = 'profile'
-                LIMIT 1
-                ) as author_image,
-                (
-                SELECT COUNT(*) 
-                FROM post_reactions 
+                SELECT COUNT(*)
+                FROM post_reactions
                 WHERE post_id = p.id AND reaction_type = 'like'
                 ) as likes_count,
                 (
-                SELECT COUNT(*) 
-                FROM posts 
+                SELECT COUNT(*)
+                FROM posts
                 WHERE parent_id = p.id
                 ) as replies_count
             FROM posts p
             JOIN users u ON p.user_id = u.id
+            JOIN communities c ON p.community_id = c.id
             WHERE p.id = $1`;
 
         const result = await db.query(query, [postId]);
@@ -147,7 +153,7 @@ class PostModel {
     async delete(postId, userId) {
         // Check if user is authorized to delete the post
         const postCheck = await db.query(
-            "SELECT user_id FROM posts WHERE id = $1",
+            "SELECT user_id, is_hidden FROM posts WHERE id = $1",
             [postId]
         );
 
@@ -159,8 +165,17 @@ class PostModel {
             throw new Error("Unauthorized to delete this post");
         }
 
-        // Delete the post
-        const query = "DELETE FROM posts WHERE id = $1 RETURNING id";
+        // Check if already hidden
+        if (postCheck.rows[0].is_hidden) {
+            throw new Error("Post is already deleted");
+        }
+
+        // Soft delete: Set is_hidden to true
+        const query = `
+            UPDATE posts
+            SET is_hidden = true, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+            RETURNING id, is_hidden`;
         const result = await db.query(query, [postId]);
         return result.rows[0];
     }
@@ -175,62 +190,197 @@ class PostModel {
         } = options;
 
         let query = `
-            SELECT 
+            SELECT
                 p.*,
-                u.full_name as author_name,
-                u.unique_url as author_url,
+                json_build_object(
+                    'id', u.id,
+                    'full_name', u.full_name,
+                    'unique_url', u.unique_url,
+                    'profile_image', (
+                        SELECT json_build_object(
+                            'id', i.id,
+                            'provider', i.provider,
+                            'key', i.key,
+                            'alt_text', i.alt_text
+                        )
+                        FROM images i
+                        WHERE i.entity_type = 'user' AND i.entity_id = u.id AND i.image_type = 'profile'
+                        LIMIT 1
+                    )
+                ) as user,
+                c.name as community_name,
+                c.unique_url as community_url,
                 (
-                SELECT json_build_object(
-                    'id', i.id,
-                    'provider', i.provider,
-                    'key', i.key,
-                    'alt_text', i.alt_text
-                )
-                FROM images i
-                WHERE i.entity_type = 'user' AND i.entity_id = u.id AND i.image_type = 'profile'
-                LIMIT 1
-                ) as author_image,
-                (
-                SELECT COUNT(*) 
-                FROM post_reactions 
+                SELECT COUNT(*)
+                FROM post_reactions
                 WHERE post_id = p.id AND reaction_type = 'like'
                 ) as likes_count,
                 (
-                SELECT COUNT(*) 
-                FROM posts 
+                SELECT COUNT(*)
+                FROM posts
                 WHERE parent_id = p.id
                 ) as replies_count,
                 (
                 SELECT EXISTS(
-                    SELECT 1 
-                    FROM post_reactions 
+                    SELECT 1
+                    FROM post_reactions
                     WHERE post_id = p.id AND user_id = $4 AND reaction_type = 'like'
                 )
-                ) as user_has_liked
+                ) as user_has_liked,
+                CASE
+                    WHEN p.content_type = 'event' THEN
+                        json_build_object(
+                            'id', e.id,
+                            'unique_url', e.unique_url,
+                            'title', e.title,
+                            'start_time', e.start_time,
+                            'end_time', e.end_time,
+                            'current_attendees', e.current_attendees,
+                            'cover_image', (
+                                SELECT json_build_object(
+                                    'id', ei.id,
+                                    'provider', ei.provider,
+                                    'key', ei.key,
+                                    'alt_text', ei.alt_text
+                                )
+                                FROM images ei
+                                WHERE ei.entity_type = 'event' AND ei.entity_id = e.id AND ei.image_type = 'cover'
+                                LIMIT 1
+                            )
+                        )
+                    ELSE NULL
+                END as event_data
             FROM posts p
             JOIN users u ON p.user_id = u.id
-            WHERE p.community_id = $1 AND p.is_hidden = false AND p.parent_id IS NULL
-            AND p.content_type != 'event'`; // Exclude event posts
+            JOIN communities c ON p.community_id = c.id
+            LEFT JOIN events e ON p.content_type = 'event' AND e.post_id = p.id
+            WHERE p.community_id = $1 AND p.is_hidden = false AND p.parent_id IS NULL`;
 
         const values = [communityId, limit, offset, userId || null];
         let paramCount = 5;
 
         if (contentType) {
-            query += ` AND p.content_type = ${paramCount}`;
+            query += ` AND p.content_type = $${paramCount}`;
             values.push(contentType);
             paramCount++;
         } else {
-            // If no specific content type is requested, show only posts and polls
-            query += ` AND p.content_type IN ('post', 'poll')`;
+            // If no specific content type is requested, show posts, polls, and upcoming events
+            query += ` AND p.content_type IN ('post', 'poll', 'event')`;
         }
 
         if (supportersOnly !== null) {
-            query += ` AND p.is_supporters_only = ${paramCount}`;
+            query += ` AND p.is_supporters_only = $${paramCount}`;
             values.push(supportersOnly);
             paramCount++;
         }
 
+        // Exclude events that have already ended
+        query += ` AND (p.content_type != 'event' OR e.end_time IS NULL OR e.end_time > NOW())`;
+
         query += ` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`;
+
+        const result = await db.query(query, values);
+        return result.rows;
+    }
+
+    async findUserFeed(userId, options = {}) {
+        const {
+            limit = 20,
+            offset = 0,
+            contentType = null,
+            supportersOnly = null,
+        } = options;
+
+        let query = `
+            SELECT
+                p.*,
+                json_build_object(
+                    'id', u.id,
+                    'full_name', u.full_name,
+                    'unique_url', u.unique_url,
+                    'profile_image', (
+                        SELECT json_build_object(
+                            'id', i.id,
+                            'provider', i.provider,
+                            'key', i.key,
+                            'alt_text', i.alt_text
+                        )
+                        FROM images i
+                        WHERE i.entity_type = 'user' AND i.entity_id = u.id AND i.image_type = 'profile'
+                        LIMIT 1
+                    )
+                ) as user,
+                c.name as community_name,
+                c.unique_url as community_url,
+                (
+                SELECT COUNT(*)
+                FROM post_reactions
+                WHERE post_id = p.id AND reaction_type = 'like'
+                ) as likes_count,
+                (
+                SELECT COUNT(*)
+                FROM posts
+                WHERE parent_id = p.id
+                ) as replies_count,
+                (
+                SELECT EXISTS(
+                    SELECT 1
+                    FROM post_reactions
+                    WHERE post_id = p.id AND user_id = $3 AND reaction_type = 'like'
+                )
+                ) as user_has_liked,
+                CASE
+                    WHEN p.content_type = 'event' THEN
+                        json_build_object(
+                            'id', e.id,
+                            'unique_url', e.unique_url,
+                            'title', e.title,
+                            'start_time', e.start_time,
+                            'end_time', e.end_time,
+                            'current_attendees', e.current_attendees,
+                            'cover_image', (
+                                SELECT json_build_object(
+                                    'id', ei.id,
+                                    'provider', ei.provider,
+                                    'key', ei.key,
+                                    'alt_text', ei.alt_text
+                                )
+                                FROM images ei
+                                WHERE ei.entity_type = 'event' AND ei.entity_id = e.id AND ei.image_type = 'cover'
+                                LIMIT 1
+                            )
+                        )
+                    ELSE NULL
+                END as event_data
+            FROM posts p
+            JOIN users u ON p.user_id = u.id
+            JOIN communities c ON p.community_id = c.id
+            LEFT JOIN events e ON p.content_type = 'event' AND e.post_id = p.id
+            INNER JOIN community_members cm ON p.community_id = cm.community_id
+            WHERE cm.user_id = $3 AND p.is_hidden = false AND p.parent_id IS NULL`;
+
+        const values = [limit, offset, userId];
+        let paramCount = 4;
+
+        if (contentType) {
+            query += ` AND p.content_type = $${paramCount}`;
+            values.push(contentType);
+            paramCount++;
+        } else {
+            // If no specific content type is requested, show posts, polls, and upcoming events
+            query += ` AND p.content_type IN ('post', 'poll', 'event')`;
+        }
+
+        if (supportersOnly !== null) {
+            query += ` AND p.is_supporters_only = $${paramCount}`;
+            values.push(supportersOnly);
+            paramCount++;
+        }
+
+        // Exclude events that have already ended
+        query += ` AND (p.content_type != 'event' OR e.end_time IS NULL OR e.end_time > NOW())`;
+
+        query += ` ORDER BY p.created_at DESC LIMIT $1 OFFSET $2`;
 
         const result = await db.query(query, values);
         return result.rows;
@@ -240,35 +390,41 @@ class PostModel {
         const { limit = 20, offset = 0, userId = null } = options;
 
         const query = `
-            SELECT 
+            SELECT
                 p.*,
-                u.full_name as author_name,
-                u.unique_url as author_url,
+                json_build_object(
+                    'id', u.id,
+                    'full_name', u.full_name,
+                    'unique_url', u.unique_url,
+                    'profile_image', (
+                        SELECT json_build_object(
+                            'id', i.id,
+                            'provider', i.provider,
+                            'key', i.key,
+                            'alt_text', i.alt_text
+                        )
+                        FROM images i
+                        WHERE i.entity_type = 'user' AND i.entity_id = u.id AND i.image_type = 'profile'
+                        LIMIT 1
+                    )
+                ) as user,
+                c.name as community_name,
+                c.unique_url as community_url,
                 (
-                SELECT json_build_object(
-                    'id', i.id,
-                    'provider', i.provider,
-                    'key', i.key,
-                    'alt_text', i.alt_text
-                )
-                FROM images i
-                WHERE i.entity_type = 'user' AND i.entity_id = u.id AND i.image_type = 'profile'
-                LIMIT 1
-                ) as author_image,
-                (
-                SELECT COUNT(*) 
-                FROM post_reactions 
+                SELECT COUNT(*)
+                FROM post_reactions
                 WHERE post_id = p.id AND reaction_type = 'like'
                 ) as likes_count,
                 (
                 SELECT EXISTS(
-                    SELECT 1 
-                    FROM post_reactions 
+                    SELECT 1
+                    FROM post_reactions
                     WHERE post_id = p.id AND user_id = $4 AND reaction_type = 'like'
                 )
                 ) as user_has_liked
             FROM posts p
             JOIN users u ON p.user_id = u.id
+            JOIN communities c ON p.community_id = c.id
             WHERE p.parent_id = $1 AND p.is_hidden = false
             ORDER BY p.created_at ASC
             LIMIT $2 OFFSET $3`;
@@ -286,26 +442,30 @@ class PostModel {
         const { contentType = null, supportersOnly = null } = filters;
 
         let query = `
-            SELECT COUNT(*) 
-            FROM posts 
-            WHERE community_id = $1 AND is_hidden = false AND parent_id IS NULL AND content_type != 'event'`;
+            SELECT COUNT(*)
+            FROM posts p
+            LEFT JOIN events e ON p.content_type = 'event' AND e.post_id = p.id
+            WHERE p.community_id = $1 AND p.is_hidden = false AND p.parent_id IS NULL`;
 
         const values = [communityId];
         let paramCount = 2;
 
         if (contentType) {
-            query += ` AND content_type = ${paramCount}`;
+            query += ` AND p.content_type = $${paramCount}`;
             values.push(contentType);
             paramCount++;
         } else {
-            query += ` AND content_type IN ('post', 'poll')`;
+            query += ` AND p.content_type IN ('post', 'poll', 'event')`;
         }
 
         if (supportersOnly !== null) {
-            query += ` AND is_supporters_only = ${paramCount}`;
+            query += ` AND p.is_supporters_only = $${paramCount}`;
             values.push(supportersOnly);
             paramCount++;
         }
+
+        // Exclude events that have already ended
+        query += ` AND (p.content_type != 'event' OR e.end_time IS NULL OR e.end_time > NOW())`;
 
         const result = await db.query(query, values);
         return parseInt(result.rows[0].count, 10);
