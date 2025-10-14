@@ -12,7 +12,10 @@
       "Bash(npm run test:events:api:*)",
       "Bash(timeout 5s npm start)",
       "Read(//d/**)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(npm run test:events:unit:*:*)",
+      "Bash(python:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

@@ -98,13 +98,13 @@ class PostController {
             // Get post images
             post.images = await ImageModel.getImagesByPostId(id);
 
-            // For poll type posts, ensure poll data is complete
+            // For poll type posts, enrich with user voting details
             if (post.content_type === "poll") {
-                // Get poll with user voting status
                 const PollModel = require("../models/poll.model");
                 const pollDetails = await PollModel.getPollDetails(id, userId);
                 if (pollDetails) {
                     post.userHasVoted = pollDetails.userHasVoted;
+                    post.userVote = pollDetails.userVote;
                 }
             }
 
@@ -162,11 +162,17 @@ class PostController {
             return res.status(200).json({
                 status: "success",
                 message: "Post deleted successfully",
-                data: { id: deletedPost.id },
+                data: {
+                    id: deletedPost.id,
+                    is_hidden: deletedPost.is_hidden
+                },
             });
         } catch (error) {
             if (error.message === "Unauthorized to delete this post") {
                 return next(new ApiError(error.message, 403));
+            }
+            if (error.message === "Post is already deleted") {
+                return next(new ApiError(error.message, 400));
             }
             next(error);
         }
@@ -270,6 +276,84 @@ class PostController {
                     limit: parseInt(limit, 10),
                     offset: parseInt(offset, 10),
                     total: totalCount,
+                },
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    async getFeed(req, res, next) {
+        try {
+            const { id: userId } = req.user;
+            const {
+                limit = 20,
+                offset = 0,
+                contentType,
+                supportersOnly,
+            } = req.query;
+
+            const posts = await PostModel.findUserFeed(userId, {
+                limit: parseInt(limit, 10),
+                offset: parseInt(offset, 10),
+                contentType,
+                supportersOnly:
+                    supportersOnly === "true"
+                        ? true
+                        : supportersOnly === "false"
+                        ? false
+                        : null,
+            });
+
+            // Filter out supporters-only posts if user doesn't have access
+            const accessPromises = posts
+                .filter((post) => post.is_supporters_only)
+                .map((post) => PostModel.isSupporterAccessible(post.id, userId));
+
+            const accessResults = await Promise.all(accessPromises);
+
+            // Create a map of post_id -> hasAccess
+            const accessMap = {};
+            posts
+                .filter((post) => post.is_supporters_only)
+                .forEach((post, index) => {
+                    accessMap[post.id] = accessResults[index];
+                });
+
+            const filteredPosts = posts.filter(
+                (post) => !post.is_supporters_only || accessMap[post.id]
+            );
+
+            // Process each post based on its type
+            const processedPosts = await Promise.all(
+                filteredPosts.map(async (post) => {
+                    // Get images for the post
+                    post.images = await ImageModel.getImagesByPostId(post.id);
+
+                    // For poll type posts, ensure poll data is complete
+                    if (post.content_type === "poll") {
+                        // Get poll with user voting status
+                        const PollModel = require("../models/poll.model");
+                        const pollDetails = await PollModel.getPollDetails(
+                            post.id,
+                            userId
+                        );
+                        if (pollDetails) {
+                            post.userHasVoted = pollDetails.userHasVoted;
+                            post.userVote = pollDetails.userVote;
+                        }
+                    }
+
+                    return post;
+                })
+            );
+
+            return res.status(200).json({
+                status: "success",
+                data: processedPosts,
+                pagination: {
+                    limit: parseInt(limit, 10),
+                    offset: parseInt(offset, 10),
                 },
             });
         } catch (error) {

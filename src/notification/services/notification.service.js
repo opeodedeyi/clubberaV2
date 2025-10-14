@@ -70,14 +70,18 @@ class NotificationService {
     static sendRealTimeNotification(notification) {
         try {
             if (socketManager.io) {
-                console.log(`[Socket.IO] Emitting new_notification to user_${notification.user_id}`);
+                console.log(
+                    `[Socket.IO] Emitting new_notification to user_${notification.user_id}`
+                );
                 socketManager.io
                     .to(`user_${notification.user_id}`)
                     .emit("new_notification", {
                         notification: notification,
                     });
             } else {
-                console.error("[Socket.IO] socketManager.io is undefined - Socket.IO may not be initialized yet");
+                console.error(
+                    "[Socket.IO] socketManager.io is undefined - Socket.IO may not be initialized yet"
+                );
             }
         } catch (error) {
             console.error("Error sending real-time notification:", error);
@@ -277,14 +281,14 @@ class NotificationService {
         const db = require("../../config/db");
         const result = await db.query(
             `
-            SELECT DISTINCT cm.user_id
-            FROM community_members cm
-            JOIN posts p ON p.community_id = cm.community_id
-            JOIN events e ON e.post_id = p.id
-            WHERE e.id = $1
-            AND (cm.role IN ('owner', 'organizer') OR p.user_id = cm.user_id)
-            AND cm.user_id != $2
-        `,
+                SELECT DISTINCT cm.user_id
+                FROM community_members cm
+                JOIN posts p ON p.community_id = cm.community_id
+                JOIN events e ON e.post_id = p.id
+                WHERE e.id = $1
+                AND (cm.role IN ('owner', 'organizer') OR p.user_id = cm.user_id)
+                AND cm.user_id != $2
+            `,
             [eventId, userId]
         );
 
@@ -330,7 +334,7 @@ class NotificationService {
             triggerEntityId: communityId,
             actorUserId: userId,
             title: `New member`,
-            message: `New member alert! ${userName} just joined the ${communityName}`,
+            message: `New member alert! ${userName} just joined ${communityName}`,
             metadata: {
                 newMemberId: userId,
                 newMemberName: userName,

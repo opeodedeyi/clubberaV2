@@ -28,7 +28,7 @@ class PollModel {
                     pollData.settings?.allowMultipleVotes || false,
                 endDate: pollData.settings?.endDate || null,
             },
-            voters: [],
+            votes: [], // Array of {userId, optionIndices, votedAt}
         };
 
         const query = `
@@ -63,7 +63,7 @@ class PollModel {
 
             // Get current poll data
             const pollQuery =
-                "SELECT poll_data, user_id FROM posts WHERE id = $1 AND content_type = $2";
+                "SELECT poll_data, user_id, is_hidden FROM posts WHERE id = $1 AND content_type = $2";
             const pollResult = await client.query(pollQuery, [postId, "poll"]);
 
             if (pollResult.rows.length === 0) {
@@ -73,11 +73,12 @@ class PollModel {
             const post = pollResult.rows[0];
             const pollData = post.poll_data;
 
-            // Check if poll allows multiple votes
-            const allowMultiple =
-                pollData.settings?.allowMultipleVotes || false;
+            // PROTECTION: Check if poll is hidden (deleted)
+            if (post.is_hidden) {
+                throw new Error("Poll has been deleted");
+            }
 
-            // Check if poll has ended
+            // PROTECTION RULE 1: Check if poll has ended
             if (
                 pollData.settings?.endDate &&
                 new Date(pollData.settings.endDate) < new Date()
@@ -85,19 +86,14 @@ class PollModel {
                 throw new Error("Poll has ended");
             }
 
-            // Check if user has already voted
-            const userVoted = pollData.voters.includes(userId);
-
-            if (userVoted && !allowMultiple) {
-                throw new Error(
-                    "User has already voted and multiple votes are not allowed"
-                );
-            }
-
-            // Validate option indices
+            // PROTECTION RULE 2: Validate option indices exist
             optionIndices = Array.isArray(optionIndices)
                 ? optionIndices
                 : [optionIndices];
+
+            if (optionIndices.length === 0) {
+                throw new Error("At least one option must be selected");
+            }
 
             if (
                 optionIndices.some(
@@ -107,27 +103,70 @@ class PollModel {
                 throw new Error("Invalid option index");
             }
 
+            // PROTECTION RULE 3: Check single vs multiple choice rules
+            const allowMultiple =
+                pollData.settings?.allowMultipleVotes || false;
+
             if (!allowMultiple && optionIndices.length > 1) {
-                throw new Error("Multiple votes not allowed");
+                throw new Error("This poll only allows voting for one option");
             }
 
-            // Update votes
-            if (userVoted && allowMultiple) {
-                // If user already voted and multiple votes allowed, don't add them to voters again
-                optionIndices.forEach((index) => {
-                    pollData.options[index].votes += 1;
-                });
+            // Check if user has already voted
+            const existingVotes = pollData.votes.filter(v => v.userId === userId);
+            const hasVoted = existingVotes.length > 0;
+
+            // SMART HANDLING: Automatically change vote if user has already voted
+            if (hasVoted) {
+                // For single-choice polls, automatically change the vote
+                if (!allowMultiple) {
+                    // Remove old votes from counts
+                    existingVotes.forEach(vote => {
+                        vote.optionIndices.forEach(index => {
+                            pollData.options[index].votes -= 1;
+                        });
+                    });
+
+                    // Remove old vote records
+                    pollData.votes = pollData.votes.filter(v => v.userId !== userId);
+
+                    // Add new vote
+                    optionIndices.forEach((index) => {
+                        pollData.options[index].votes += 1;
+                    });
+
+                    pollData.votes.push({
+                        userId,
+                        optionIndices,
+                        votedAt: new Date().toISOString()
+                    });
+                } else {
+                    // For multiple-choice polls, add additional vote
+                    optionIndices.forEach((index) => {
+                        pollData.options[index].votes += 1;
+                    });
+
+                    pollData.votes.push({
+                        userId,
+                        optionIndices,
+                        votedAt: new Date().toISOString()
+                    });
+                }
             } else {
-                // Add votes and add user to voters
+                // First time voting - add votes
                 optionIndices.forEach((index) => {
                     pollData.options[index].votes += 1;
                 });
-                pollData.voters.push(userId);
+
+                pollData.votes.push({
+                    userId,
+                    optionIndices,
+                    votedAt: new Date().toISOString()
+                });
             }
 
             // Update the poll data
             const updateQuery = `
-                UPDATE posts 
+                UPDATE posts
                 SET poll_data = $1, updated_at = CURRENT_TIMESTAMP
                 WHERE id = $2
                 RETURNING *`;
@@ -138,7 +177,10 @@ class PollModel {
             ]);
 
             await client.query("COMMIT");
-            return updateResult.rows[0];
+            return {
+                poll: updateResult.rows[0],
+                voteAction: hasVoted ? 'changed' : 'created'
+            };
         } catch (error) {
             await client.query("ROLLBACK");
             throw error;
@@ -165,11 +207,25 @@ class PollModel {
 
         const poll = result.rows[0];
 
-        // Check if user has voted
-        if (userId && poll.poll_data.voters) {
-            poll.userHasVoted = poll.poll_data.voters.includes(userId);
+        // Check if user has voted and get their vote details
+        if (userId && poll.poll_data.votes) {
+            const userVotes = poll.poll_data.votes.filter(v => v.userId === userId);
+            poll.userHasVoted = userVotes.length > 0;
+
+            // For single-choice polls, return the user's vote
+            // For multiple-choice polls, return all their votes
+            if (userVotes.length > 0) {
+                poll.userVote = {
+                    optionIndices: userVotes.flatMap(v => v.optionIndices),
+                    votedAt: userVotes[userVotes.length - 1].votedAt, // Most recent vote time
+                    voteCount: userVotes.length
+                };
+            } else {
+                poll.userVote = null;
+            }
         } else {
             poll.userHasVoted = false;
+            poll.userVote = null;
         }
 
         return poll;
@@ -195,7 +251,7 @@ class PollModel {
         pollData.settings.endDate = new Date().toISOString();
 
         const updateQuery = `
-            UPDATE posts 
+            UPDATE posts
             SET poll_data = $1, updated_at = CURRENT_TIMESTAMP
             WHERE id = $2
             RETURNING *`;

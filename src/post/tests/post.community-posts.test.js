@@ -82,6 +82,7 @@ describe("PostController - Get Community Posts", () => {
                         { text: "Option 1", votes: 5 },
                         { text: "Option 2", votes: 3 },
                     ],
+                    votes: [],
                 },
                 author_name: "Other User",
                 author_url: "other-user",
@@ -119,6 +120,7 @@ describe("PostController - Get Community Posts", () => {
         PollModel.getPollDetails.mockResolvedValue({
             id: 11,
             userHasVoted: false,
+            userVote: null,
             poll_data: {
                 question: "Poll question",
                 options: [
@@ -126,6 +128,7 @@ describe("PostController - Get Community Posts", () => {
                     { text: "Option 2", votes: 3 },
                 ],
                 settings: { allowMultipleVotes: false },
+                votes: [],
             },
         });
     });
