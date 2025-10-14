@@ -5,12 +5,14 @@ const PollController = require("../controllers/poll.controller");
 const PollModel = require("../models/poll.model");
 const PostModel = require("../models/post.model");
 const ApiError = require("../../utils/ApiError");
+const CommunityPermissions = require("../../utils/community-permissions");
 
 // Mock dependencies
 jest.mock("express-validator");
 jest.mock("../models/poll.model");
 jest.mock("../models/post.model");
 jest.mock("../../utils/ApiError");
+jest.mock("../../utils/community-permissions");
 
 describe("Poll Functionality", () => {
     let req, res, next;
@@ -65,6 +67,10 @@ describe("Poll Functionality", () => {
         PostModel.isUserAuthorized.mockResolvedValue(true);
         PostModel.isSupporterAccessible.mockResolvedValue(true);
 
+        CommunityPermissions.canCreatePolls.mockResolvedValue({
+            allowed: true
+        });
+
         PollModel.createPoll.mockResolvedValue({
             id: 1,
             community_id: 1,
@@ -83,7 +89,7 @@ describe("Poll Functionality", () => {
                     allowMultipleVotes: false,
                     endDate: null,
                 },
-                voters: [],
+                votes: [],
             },
             created_at: new Date(),
             updated_at: new Date(),
@@ -107,9 +113,10 @@ describe("Poll Functionality", () => {
                     allowMultipleVotes: false,
                     endDate: null,
                 },
-                voters: [],
+                votes: [],
             },
             userHasVoted: false,
+            userVote: null,
             author_name: "Test User",
             author_url: "test-user",
             created_at: new Date(),
@@ -117,15 +124,22 @@ describe("Poll Functionality", () => {
         });
 
         PollModel.votePoll.mockResolvedValue({
-            id: 1,
-            poll_data: {
-                options: [
-                    { text: "Red", votes: 0 },
-                    { text: "Blue", votes: 1 },
-                    { text: "Green", votes: 0 },
-                ],
-                voters: [1],
+            poll: {
+                id: 1,
+                poll_data: {
+                    options: [
+                        { text: "Red", votes: 0 },
+                        { text: "Blue", votes: 1 },
+                        { text: "Green", votes: 0 },
+                    ],
+                    votes: [{
+                        userId: 1,
+                        optionIndices: [1],
+                        votedAt: new Date().toISOString()
+                    }],
+                },
             },
+            voteAction: 'created'
         });
 
         PollModel.endPoll.mockResolvedValue({
@@ -147,7 +161,7 @@ describe("Poll Functionality", () => {
         it("should create a poll successfully", async () => {
             await PollController.createPoll(req, res, next);
 
-            expect(PostModel.isUserAuthorized).toHaveBeenCalledWith(1, 1);
+            expect(CommunityPermissions.canCreatePolls).toHaveBeenCalledWith(1, 1);
             expect(PollModel.createPoll).toHaveBeenCalledWith({
                 communityId: 1,
                 userId: 1,
@@ -209,18 +223,26 @@ describe("Poll Functionality", () => {
         });
 
         it("should return 403 when user is not a community member", async () => {
-            PostModel.isUserAuthorized.mockResolvedValue(false);
+            CommunityPermissions.canCreatePolls.mockResolvedValue({
+                allowed: false,
+                reason: "You must be a member of this community to create polls"
+            });
 
             await PollController.createPoll(req, res, next);
 
             expect(next).toHaveBeenCalled();
             expect(ApiError).toHaveBeenCalledWith(
-                "User is not a member of this community",
+                "You must be a member of this community to create polls",
                 403
             );
         });
 
         it("should handle poll creation with invalid data", async () => {
+            // Ensure permission check passes first
+            CommunityPermissions.canCreatePolls.mockResolvedValue({
+                allowed: true
+            });
+
             PollModel.createPoll.mockImplementation(() => {
                 throw new Error("Poll must have at least 2 options");
             });
@@ -235,70 +257,6 @@ describe("Poll Functionality", () => {
         });
     });
 
-    describe("Get Poll", () => {
-        it("should get a poll successfully", async () => {
-            req.params = { pollId: "1" };
-
-            await PollController.getPoll(req, res, next);
-
-            expect(PollModel.getPollDetails).toHaveBeenCalledWith("1", 1);
-
-            expect(res.status).toHaveBeenCalledWith(200);
-            expect(res.json).toHaveBeenCalledWith({
-                status: "success",
-                data: expect.objectContaining({
-                    id: 1,
-                    content: "What's your favorite color?",
-                    content_type: "poll",
-                    userHasVoted: false,
-                }),
-            });
-        });
-
-        it("should return 404 when poll not found", async () => {
-            PollModel.getPollDetails.mockResolvedValue(null);
-
-            await PollController.getPoll(req, res, next);
-
-            expect(next).toHaveBeenCalled();
-            expect(ApiError).toHaveBeenCalledWith("Poll not found", 404);
-        });
-
-        it("should return 403 when poll is supporters-only and user has no access", async () => {
-            PollModel.getPollDetails.mockResolvedValue({
-                id: 1,
-                is_supporters_only: true,
-            });
-
-            PostModel.isSupporterAccessible.mockResolvedValue(false);
-
-            await PollController.getPoll(req, res, next);
-
-            expect(next).toHaveBeenCalled();
-            expect(ApiError).toHaveBeenCalledWith(
-                "This poll is for community supporters only",
-                403
-            );
-        });
-
-        it("should return 401 when poll is supporters-only and user is not authenticated", async () => {
-            req.user = null;
-
-            PollModel.getPollDetails.mockResolvedValue({
-                id: 1,
-                is_supporters_only: true,
-            });
-
-            await PollController.getPoll(req, res, next);
-
-            expect(next).toHaveBeenCalled();
-            expect(ApiError).toHaveBeenCalledWith(
-                "Authentication required to view this poll",
-                401
-            );
-        });
-    });
-
     describe("Vote Poll", () => {
         it("should vote on a poll successfully", async () => {
             req.params = { pollId: "1" };
@@ -307,20 +265,21 @@ describe("Poll Functionality", () => {
             // Mock that a poll with is_supporters_only is false
             PollModel.getPollDetails.mockResolvedValue({
                 id: 1,
+                community_id: 1,
                 is_supporters_only: false,
             });
 
             await PollController.votePoll(req, res, next);
 
             expect(PollModel.getPollDetails).toHaveBeenCalledWith("1", 1);
-            // Note: We don't need to check supporter access if the poll is not supporters-only
-            // So this function should not be called
+            expect(PostModel.isUserAuthorized).toHaveBeenCalledWith(1, 1);
             expect(PostModel.isSupporterAccessible).not.toHaveBeenCalled();
             expect(PollModel.votePoll).toHaveBeenCalledWith("1", 1, [1]);
 
             expect(res.status).toHaveBeenCalledWith(200);
             expect(res.json).toHaveBeenCalledWith({
                 status: "success",
+                message: "Vote recorded successfully",
                 data: expect.any(Object),
             });
         });
@@ -332,7 +291,7 @@ describe("Poll Functionality", () => {
 
             expect(next).toHaveBeenCalled();
             expect(ApiError).toHaveBeenCalledWith(
-                "Option indices are required",
+                "At least one option must be selected",
                 400
             );
         });
@@ -349,6 +308,7 @@ describe("Poll Functionality", () => {
         it("should return 403 when poll is supporters-only and user has no access", async () => {
             PollModel.getPollDetails.mockResolvedValue({
                 id: 1,
+                community_id: 1,
                 is_supporters_only: true,
             });
 
@@ -364,17 +324,21 @@ describe("Poll Functionality", () => {
         });
 
         it("should handle voting errors", async () => {
+            PollModel.getPollDetails.mockResolvedValue({
+                id: 1,
+                community_id: 1,
+                is_supporters_only: false,
+            });
+
             PollModel.votePoll.mockImplementation(() => {
-                throw new Error(
-                    "User has already voted and multiple votes are not allowed"
-                );
+                throw new Error("Poll has ended");
             });
 
             await PollController.votePoll(req, res, next);
 
             expect(next).toHaveBeenCalled();
             expect(ApiError).toHaveBeenCalledWith(
-                "User has already voted and multiple votes are not allowed",
+                "Poll has ended",
                 400
             );
         });

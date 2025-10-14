@@ -8,6 +8,9 @@ const PostValidator = require("../validators/post.validator");
 
 const router = express.Router();
 
+// Get user's feed (posts from all their communities)
+router.get("/feed", authenticate, verifyEmail, PostController.getFeed);
+
 // Get posts for a community (public or supporters-only if authorized)
 router.get(
     "/community/:communityId",
@@ -25,15 +28,6 @@ router.post(
     verifyEmail,
     PostValidator.validateCreatePost,
     PostController.createPost
-);
-
-// Update a post
-router.put(
-    "/:id",
-    authenticate,
-    verifyEmail,
-    PostValidator.validateUpdatePost,
-    PostController.updatePost
 );
 
 // Delete a post

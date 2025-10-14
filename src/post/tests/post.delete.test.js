@@ -46,6 +46,7 @@ describe("PostController - Delete Post", () => {
         // Mock PostModel methods
         PostModel.delete.mockResolvedValue({
             id: 10,
+            is_hidden: true,
         });
     });
 
@@ -60,7 +61,10 @@ describe("PostController - Delete Post", () => {
                 expect.objectContaining({
                     status: "success",
                     message: "Post deleted successfully",
-                    data: { id: 10 },
+                    data: {
+                        id: 10,
+                        is_hidden: true
+                    },
                 })
             );
         });
@@ -86,6 +90,19 @@ describe("PostController - Delete Post", () => {
             expect(ApiError).toHaveBeenCalledWith(
                 "Unauthorized to delete this post",
                 403
+            );
+        });
+
+        it("should return 400 if post is already deleted", async () => {
+            const alreadyDeletedError = new Error("Post is already deleted");
+            PostModel.delete.mockRejectedValue(alreadyDeletedError);
+
+            await PostController.deletePost(req, res, next);
+
+            expect(next).toHaveBeenCalled();
+            expect(ApiError).toHaveBeenCalledWith(
+                "Post is already deleted",
+                400
             );
         });
 
