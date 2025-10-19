@@ -14,9 +14,14 @@ class CommunitySearchModel {
         }
 
         try {
-            // Convert the search query to support both exact and prefix matching
+            // Convert the search query to support full-text search + ILIKE fallback
+            const searchPattern = `%${query.replace(/\s+/g, '%')}%`; // Match words regardless of spaces
+
+            // Prepare tsquery - replace spaces with & for multi-word queries
+            const tsQueryString = query.trim().replace(/\s+/g, ' & ');
+
             const searchQuery = `
-                SELECT 
+                SELECT
                     c.id,
                     c.name,
                     c.unique_url,
@@ -24,37 +29,62 @@ class CommunitySearchModel {
                     c.is_private,
                     c.is_active,
                     c.created_at,
-                    GREATEST(
-                        ts_rank(c.search_document, websearch_to_tsquery('english', $1)),
-                        ts_rank(c.search_document, to_tsquery('english', $1 || ':*')) * 0.8
-                    ) AS rank
+                    CASE
+                        WHEN c.search_document IS NOT NULL THEN
+                            GREATEST(
+                                ts_rank(c.search_document, websearch_to_tsquery('english', $1)),
+                                ts_rank(c.search_document, plainto_tsquery('english', $1)) * 0.9,
+                                ts_rank(c.search_document, to_tsquery('english', $6 || ':*')) * 0.8
+                            )
+                        ELSE 0
+                    END +
+                    CASE
+                        WHEN c.name ILIKE $4 THEN 2.0
+                        WHEN c.tagline ILIKE $4 THEN 1.5
+                        WHEN c.description ILIKE $4 THEN 1.0
+                        ELSE 0
+                    END AS rank
                 FROM communities c
-                WHERE 
+                WHERE
                     c.is_active = true AND
                     (
-                        c.search_document @@ websearch_to_tsquery('english', $1) OR
-                        c.search_document @@ to_tsquery('english', $1 || ':*')
+                        (c.search_document IS NOT NULL AND (
+                            c.search_document @@ websearch_to_tsquery('english', $1) OR
+                            c.search_document @@ plainto_tsquery('english', $1) OR
+                            c.search_document @@ to_tsquery('english', $6 || ':*')
+                        )) OR
+                        c.name ILIKE $4 OR
+                        c.tagline ILIKE $4 OR
+                        c.description ILIKE $4
                     ) AND
                     ($2 = true OR c.is_private = false)
                 ORDER BY rank DESC
-                LIMIT $3 OFFSET $4
+                LIMIT $3 OFFSET $5
             `;
 
             const communities = await db.query(searchQuery, [
                 query,
                 includePrivate,
                 limit,
+                searchPattern,
                 offset,
+                tsQueryString,
             ]);
 
-            // Count total results with both exact and prefix matching
+            // Count total results with full-text search + ILIKE fallback
             const countQuery = `
                 SELECT COUNT(*) FROM communities c
-                WHERE 
+                WHERE
                     c.is_active = true AND
                     (
-                        c.search_document @@ websearch_to_tsquery('english', $1) OR
-                        c.search_document @@ to_tsquery('english', $1 || ':*')
+                        (c.search_document IS NOT NULL AND (
+                            c.search_document @@ websearch_to_tsquery('english', $1) OR
+                            c.search_document @@ plainto_tsquery('english', $1) OR
+                            c.search_document @@ to_tsquery('english', $4 || ':*')
+                        )) OR
+                        c.name ILIKE $3 OR
+                        c.tagline ILIKE $3 OR
+                        c.description ILIKE $3
                     ) AND
                     ($2 = true OR c.is_private = false)
             `;
@@ -62,6 +92,8 @@ class CommunitySearchModel {
             const countResult = await db.query(countQuery, [
                 query,
                 includePrivate,
+                searchPattern,
+                tsQueryString,
             ]);
             const total = parseInt(countResult.rows[0].count);
 
@@ -205,9 +237,12 @@ class CommunitySearchModel {
             let queryParams;
             
             if (query && query.trim()) {
-                // Combined proximity + text search
+                // Combined proximity + text search with ILIKE fallback
+                const searchPattern = `%${query.replace(/\s+/g, '%')}%`;
+                const tsQueryString = query.trim().replace(/\s+/g, ' & ');
+
                 searchQuery = `
-                    SELECT 
+                    SELECT
                         c.id,
                         c.name,
                         c.unique_url,
@@ -216,25 +251,42 @@ class CommunitySearchModel {
                         c.is_active,
                         c.created_at,
                         ST_Distance(l.geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)) * 69.0 AS distance_miles,
-                        GREATEST(
-                            ts_rank(c.search_document, websearch_to_tsquery('english', $3)),
-                            ts_rank(c.search_document, to_tsquery('english', $3 || ':*')) * 0.8
-                        ) AS text_rank
+                        CASE
+                            WHEN c.search_document IS NOT NULL THEN
+                                GREATEST(
+                                    ts_rank(c.search_document, websearch_to_tsquery('english', $3)),
+                                    ts_rank(c.search_document, plainto_tsquery('english', $3)) * 0.9,
+                                    ts_rank(c.search_document, to_tsquery('english', $9 || ':*')) * 0.8
+                                )
+                            ELSE 0
+                        END +
+                        CASE
+                            WHEN c.name ILIKE $8 THEN 2.0
+                            WHEN c.tagline ILIKE $8 THEN 1.5
+                            WHEN c.description ILIKE $8 THEN 1.0
+                            ELSE 0
+                        END AS text_rank
                     FROM communities c
                     JOIN locations l ON l.entity_type = 'community' AND l.entity_id = c.id
-                    WHERE 
+                    WHERE
                         c.is_active = true AND
                         l.geom IS NOT NULL AND
                         ST_DWithin(l.geom, ST_SetSRID(ST_MakePoint($1, $2), 4326), $4 / 69.0) AND
                         (
-                            c.search_document @@ websearch_to_tsquery('english', $3) OR
-                            c.search_document @@ to_tsquery('english', $3 || ':*')
+                            (c.search_document IS NOT NULL AND (
+                                c.search_document @@ websearch_to_tsquery('english', $3) OR
+                                c.search_document @@ plainto_tsquery('english', $3) OR
+                                c.search_document @@ to_tsquery('english', $9 || ':*')
+                            )) OR
+                            c.name ILIKE $8 OR
+                            c.tagline ILIKE $8 OR
+                            c.description ILIKE $8
                         ) AND
                         ($5 = true OR c.is_private = false)
                     ORDER BY distance_miles ASC, text_rank DESC
                     LIMIT $6 OFFSET $7
                 `;
-                queryParams = [lng, lat, query, radius, includePrivate, limit, offset];
+                queryParams = [lng, lat, query, radius, includePrivate, limit, offset, searchPattern, tsQueryString];
             } else {
                 // Proximity only search
                 searchQuery = `
@@ -266,27 +318,35 @@ class CommunitySearchModel {
             const countQuery = query && query.trim() ? `
                 SELECT COUNT(*) FROM communities c
                 JOIN locations l ON l.entity_type = 'community' AND l.entity_id = c.id
-                WHERE 
+                WHERE
                     c.is_active = true AND
                     l.geom IS NOT NULL AND
                     ST_DWithin(l.geom, ST_SetSRID(ST_MakePoint($1, $2), 4326), $3 / 69.0) AND
                     (
-                        c.search_document @@ websearch_to_tsquery('english', $4) OR
-                        c.search_document @@ to_tsquery('english', $4 || ':*')
+                        (c.search_document IS NOT NULL AND (
+                            c.search_document @@ websearch_to_tsquery('english', $4) OR
+                            c.search_document @@ plainto_tsquery('english', $4) OR
+                            c.search_document @@ to_tsquery('english', $7 || ':*')
+                        )) OR
+                        c.name ILIKE $6 OR
+                        c.tagline ILIKE $6 OR
+                        c.description ILIKE $6
                     ) AND
                     ($5 = true OR c.is_private = false)
             ` : `
                 SELECT COUNT(*) FROM communities c
                 JOIN locations l ON l.entity_type = 'community' AND l.entity_id = c.id
-                WHERE 
+                WHERE
                     c.is_active = true AND
                     l.geom IS NOT NULL AND
                     ST_DWithin(l.geom, ST_SetSRID(ST_MakePoint($1, $2), 4326), $3 / 69.0) AND
                     ($4 = true OR c.is_private = false)
             `;
 
-            const countParams = query && query.trim() ? 
-                [lng, lat, radius, query, includePrivate] : 
+            const searchPattern = query && query.trim() ? `%${query.replace(/\s+/g, '%')}%` : null;
+            const tsQueryString = query && query.trim() ? query.trim().replace(/\s+/g, ' & ') : null;
+            const countParams = query && query.trim() ?
+                [lng, lat, radius, query, includePrivate, searchPattern, tsQueryString] :
                 [lng, lat, radius, includePrivate];
 
             const countResult = await db.query(countQuery, countParams);
