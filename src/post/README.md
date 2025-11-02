@@ -8,6 +8,9 @@ This document provides detailed instructions on how to create posts and differen
 
 1. [Creating Posts](#creating-posts)
 2. [Getting Posts](#getting-posts)
+   - [Get a Single Post](#get-a-single-post-or-poll)
+   - [Get User Feed](#get-user-feed)
+   - [Get Community Posts](#get-community-posts)
 3. [Deleting Posts](#deleting-posts)
 4. [Replies](#replies)
    - [Get Replies](#get-replies)
@@ -231,6 +234,104 @@ When fetching a poll, the response includes:
 - Reply threads → View parent post
 - Deep linking from emails/external sources
 - SEO/Open Graph meta tags
+
+### Get User Feed
+
+Retrieve all posts (and polls) from all communities the authenticated user is a member of. This is the main feed endpoint for logged-in users.
+
+**Endpoint:** `GET /api/posts/feed`
+
+**Authentication:** Required
+
+**Query Parameters:**
+- `limit` (optional, default: 20) - Number of posts per page
+- `offset` (optional, default: 0) - Pagination offset
+- `contentType` (optional) - Filter by type: `"post"` or `"poll"`
+- `supportersOnly` (optional) - Filter: `true` or `false`
+
+**Request:**
+```bash
+GET /api/posts/feed?limit=20&offset=0
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "data": [
+    {
+      "id": 123,
+      "content": "Latest community update!",
+      "content_type": "post",
+      "user": {
+        "id": 5,
+        "full_name": "John Doe",
+        "unique_url": "john-doe",
+        "profile_image": null
+      },
+      "community_name": "Tech Community",
+      "community_url": "tech-community",
+      "likes_count": 15,
+      "replies_count": 3,
+      "user_has_liked": false,
+      "images": [],
+      "created_at": "2025-10-13T14:30:00Z"
+    },
+    {
+      "id": 456,
+      "content": "What's your favorite framework?",
+      "content_type": "poll",
+      "poll_data": {
+        "question": "What's your favorite framework?",
+        "options": [
+          { "text": "React", "votes": 15 },
+          { "text": "Vue", "votes": 10 },
+          { "text": "Angular", "votes": 5 }
+        ],
+        "settings": {
+          "allowMultipleVotes": false,
+          "endDate": null
+        }
+      },
+      "user": {
+        "id": 6,
+        "full_name": "Jane Smith",
+        "unique_url": "jane-smith",
+        "profile_image": null
+      },
+      "community_name": "JavaScript Community",
+      "community_url": "javascript",
+      "userHasVoted": true,
+      "userVote": {
+        "optionIndices": [0],
+        "votedAt": "2025-10-13T12:00:00Z",
+        "voteCount": 1
+      },
+      "likes_count": 8,
+      "user_has_liked": false,
+      "created_at": "2025-10-13T10:00:00Z"
+    }
+  ],
+  "pagination": {
+    "limit": 20,
+    "offset": 0
+  }
+}
+```
+
+**Key Features:**
+- Returns posts from **all communities** the user is a member of
+- Automatically filters out supporters-only posts the user doesn't have access to
+- For polls, includes `userHasVoted` and `userVote` to show which options the user voted for
+- Posts are ordered by creation date (newest first)
+- Each post includes the community name and URL for context
+
+**Use Cases:**
+- Main feed/timeline for logged-in users
+- Personalized content stream
+- Multi-community activity overview
+
+---
 
 ### Get Community Posts
 
