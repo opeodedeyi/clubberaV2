@@ -768,4 +768,37 @@ CREATE INDEX idx_notifications_metadata ON notifications USING gin (metadata);
 -- - Real-time delivery via Socket.IO integration
 -- - Supports both user-triggered and system-generated notifications
 -- ========================================================================
+
+-- ========================================================================
+-- IDEMPOTENCY KEYS SYSTEM
+-- ========================================================================
+-- Prevents duplicate API requests from creating duplicate resources.
+-- Protects against double-clicks, network retries, and race conditions.
+
+-- Idempotency keys table
+CREATE TABLE idempotency_keys (
+    key VARCHAR(255) PRIMARY KEY,
+    request_path VARCHAR(500) NOT NULL,
+    request_method VARCHAR(10) NOT NULL,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    response_status INTEGER NOT NULL,
+    response_body JSONB NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Index for efficient cleanup of expired keys
+CREATE INDEX idx_idempotency_keys_created_at ON idempotency_keys(created_at);
+
+-- Index for user-specific lookups
+CREATE INDEX idx_idempotency_keys_user_id ON idempotency_keys(user_id);
+
+-- ========================================================================
+-- IDEMPOTENCY NOTES:
+-- - Frontend generates unique key (UUID) per form/operation
+-- - Backend stores key + response for duplicate detection
+-- - Same key = same response, no duplicate processing
+-- - Keys expire after 24 hours (cleaned up by cron job)
+-- - Works across all Heroku dynos (shared PostgreSQL state)
+-- - Prevents race conditions in community creation and other operations
+-- ========================================================================
 ```

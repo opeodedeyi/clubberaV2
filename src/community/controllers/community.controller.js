@@ -19,9 +19,24 @@ function generateUniqueUrl(name) {
         .replace(/^-|-$/g, ""); // Remove leading/trailing hyphens
 }
 
+// Simple hash function to generate numeric ID for advisory locks
+function hashCode(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+    }
+    return hash;
+}
+
 class CommunityController {
     async createCommunity(req, res, next) {
+        const client = await db.pool.connect();
+
         try {
+            await client.query("BEGIN");
+
             const userId = req.user.id;
             const {
                 name,
@@ -32,11 +47,31 @@ class CommunityController {
                 ...communityData
             } = req.body;
 
+            // Generate unique URL with database-level locking to prevent race conditions
             let baseUrl = generateUniqueUrl(name);
             let uniqueUrl = baseUrl;
             let counter = 1;
 
-            while (await communityModel.checkUniqueUrlExists(uniqueUrl)) {
+            // Use advisory lock to prevent concurrent URL generation conflicts
+            const lockId = Math.abs(hashCode(baseUrl));
+            await client.query("SELECT pg_advisory_xact_lock($1)", [lockId]);
+
+            // Check for existing URLs
+            while (true) {
+                const checkQuery = `
+                    SELECT id FROM communities
+                    WHERE unique_url = $1 AND is_active = true
+                    LIMIT 1
+                `;
+
+                const result = await client.query(checkQuery, [uniqueUrl]);
+
+                if (result.rows.length === 0) {
+                    // URL is available
+                    break;
+                }
+
+                // URL exists, try next variation
                 uniqueUrl = `${baseUrl}-${counter}`;
                 counter++;
             }
@@ -45,26 +80,59 @@ class CommunityController {
             communityData.unique_url = uniqueUrl;
             communityData.created_by = userId;
 
-            const operations = [
-                communityModel.create({
-                    ...communityData,
-                    useTransaction: true,
-                }),
-            ];
+            // Create community within transaction
+            const createQuery = `
+                INSERT INTO communities
+                    (name, unique_url, tagline, description, guidelines, is_private, created_by)
+                VALUES
+                    ($1, $2, $3, $4, $5, $6, $7)
+                RETURNING *
+            `;
 
-            const results = await db.executeTransaction(operations);
-            const community = results[0].rows[0];
+            const communityResult = await client.query(createQuery, [
+                communityData.name,
+                communityData.unique_url,
+                communityData.tagline || null,
+                communityData.description || null,
+                communityData.guidelines || null,
+                communityData.is_private || false,
+                communityData.created_by,
+            ]);
 
-            await communityModel.addMember({
-                community_id: community.id,
-                user_id: userId,
-                role: "owner",
-            });
+            const community = communityResult.rows[0];
 
-            await subscriptionModel.createFreeSubscription(
-                community.id,
-                userId
-            );
+            // Add owner as member within transaction
+            const addMemberQuery = `
+                INSERT INTO community_members (community_id, user_id, role)
+                VALUES ($1, $2, $3)
+                RETURNING *
+            `;
+
+            await client.query(addMemberQuery, [community.id, userId, "owner"]);
+
+            // Create free subscription within transaction
+            const getPlanQuery = `
+                SELECT id FROM subscription_plans WHERE code = 'free' LIMIT 1
+            `;
+            const planResult = await client.query(getPlanQuery);
+
+            if (planResult.rows.length > 0) {
+                const createSubQuery = `
+                    INSERT INTO community_subscriptions
+                        (community_id, plan_id, status, created_by)
+                    VALUES ($1, $2, 'active', $3)
+                    RETURNING *
+                `;
+
+                await client.query(createSubQuery, [
+                    community.id,
+                    planResult.rows[0].id,
+                    userId,
+                ]);
+            }
+
+            // Commit transaction - community is now created atomically
+            await client.query("COMMIT");
 
             let locationData = null;
             if (location && (location.city || (location.lat && location.lng))) {
@@ -88,12 +156,8 @@ class CommunityController {
                     }
                     tagsData = await tagModel.getCommunityTags(community.id);
                 } catch (tagError) {
-                    return next(
-                        new ApiError(
-                            `Error with tags: ${tagError.message}`,
-                            400
-                        )
-                    );
+                    // Log error but don't fail the creation
+                    console.error("Error assigning tags:", tagError);
                 }
             }
 
@@ -138,6 +202,8 @@ class CommunityController {
                 data: completeData,
             });
         } catch (error) {
+            await client.query("ROLLBACK");
+
             if (
                 error.code === "23505" &&
                 error.constraint === "communities_unique_url_key"
@@ -145,6 +211,8 @@ class CommunityController {
                 return next(new ApiError("Community URL already exists", 400));
             }
             next(error);
+        } finally {
+            client.release();
         }
     }
 
