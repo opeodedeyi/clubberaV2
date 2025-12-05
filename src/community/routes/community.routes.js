@@ -11,12 +11,14 @@ const { authenticate } = require("../../middleware/auth");
 const optionalAuth = require("../../middleware/optionalAuth");
 const { verifyEmail } = require("../../middleware/verifyEmail");
 const { requireRole } = require("../../middleware/role");
+const { idempotency } = require("../../middleware/idempotency");
 
 // Create a new community
 router.post(
     "/",
     authenticate,
     verifyEmail,
+    idempotency,
     communityValidator.createCommunity,
     communityController.createCommunity
 );
