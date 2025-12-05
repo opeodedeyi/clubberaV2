@@ -23,6 +23,7 @@ class UserModel {
             gender = "prefer not to say",
             birthday = null,
             preferences = {},
+            isEmailConfirmed = false,
         } = userData;
 
         return {
@@ -35,9 +36,10 @@ class UserModel {
                     bio,
                     gender,
                     birthday,
-                    preferences
-                ) 
-                VALUES($1, $2, $3, $4, $5, $6, $7, $8) 
+                    preferences,
+                    is_email_confirmed
+                )
+                VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 RETURNING id, full_name, email, unique_url, is_email_confirmed, created_at
             `,
             values: [
@@ -49,6 +51,7 @@ class UserModel {
                 gender,
                 birthday,
                 JSON.stringify(preferences),
+                isEmailConfirmed,
             ],
         };
     }
