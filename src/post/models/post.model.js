@@ -2,6 +2,32 @@
 const db = require("../../config/db");
 
 class PostModel {
+    _formatTimeUntil(seconds) {
+        if (seconds <= 0) {
+            return "Started";
+        }
+
+        const days = Math.floor(seconds / 86400);
+        const hours = Math.floor((seconds % 86400) / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+
+        if (days > 0) {
+            return `${days} day${days !== 1 ? "s" : ""}${
+                hours > 0 ? `, ${hours} hour${hours !== 1 ? "s" : ""}` : ""
+            }`;
+        } else if (hours > 0) {
+            return `${hours} hour${hours !== 1 ? "s" : ""}${
+                minutes > 0
+                    ? `, ${minutes} minute${minutes !== 1 ? "s" : ""}`
+                    : ""
+            }`;
+        } else if (minutes > 0) {
+            return `${minutes} minute${minutes !== 1 ? "s" : ""}`;
+        } else {
+            return "Less than a minute";
+        }
+    }
+
     async create(postData) {
         const {
             communityId,
@@ -233,9 +259,16 @@ class PostModel {
                             'id', e.id,
                             'unique_url', e.unique_url,
                             'title', e.title,
+                            'description', e.description,
                             'start_time', e.start_time,
                             'end_time', e.end_time,
                             'current_attendees', e.current_attendees,
+                            'attendance_status', (
+                                SELECT ea.status
+                                FROM event_attendees ea
+                                WHERE ea.event_id = e.id AND ea.user_id = $4
+                                LIMIT 1
+                            ),
                             'cover_image', (
                                 SELECT json_build_object(
                                     'id', ei.id,
@@ -280,7 +313,19 @@ class PostModel {
         query += ` ORDER BY p.created_at DESC LIMIT $2 OFFSET $3`;
 
         const result = await db.query(query, values);
-        return result.rows;
+
+        // Add startingIn for event posts
+        const postsWithStartingIn = result.rows.map(post => {
+            if (post.content_type === 'event' && post.event_data && post.event_data.start_time) {
+                const now = new Date();
+                const startTime = new Date(post.event_data.start_time);
+                const secondsUntilStart = Math.floor((startTime - now) / 1000);
+                post.event_data.starting_in = this._formatTimeUntil(secondsUntilStart);
+            }
+            return post;
+        });
+
+        return postsWithStartingIn;
     }
 
     async findUserFeed(userId, options = {}) {
@@ -335,9 +380,16 @@ class PostModel {
                             'id', e.id,
                             'unique_url', e.unique_url,
                             'title', e.title,
+                            'description', e.description,
                             'start_time', e.start_time,
                             'end_time', e.end_time,
                             'current_attendees', e.current_attendees,
+                            'attendance_status', (
+                                SELECT ea.status
+                                FROM event_attendees ea
+                                WHERE ea.event_id = e.id AND ea.user_id = $3
+                                LIMIT 1
+                            ),
                             'cover_image', (
                                 SELECT json_build_object(
                                     'id', ei.id,
@@ -383,7 +435,19 @@ class PostModel {
         query += ` ORDER BY p.created_at DESC LIMIT $1 OFFSET $2`;
 
         const result = await db.query(query, values);
-        return result.rows;
+
+        // Add startingIn for event posts
+        const postsWithStartingIn = result.rows.map(post => {
+            if (post.content_type === 'event' && post.event_data && post.event_data.start_time) {
+                const now = new Date();
+                const startTime = new Date(post.event_data.start_time);
+                const secondsUntilStart = Math.floor((startTime - now) / 1000);
+                post.event_data.starting_in = this._formatTimeUntil(secondsUntilStart);
+            }
+            return post;
+        });
+
+        return postsWithStartingIn;
     }
 
     async findRepliesByPostId(postId, options = {}) {
