@@ -5,7 +5,7 @@ const AttendanceModel = require("../models/attendance.model");
 class EventSearchController {
     async searchEvents(req, res, next) {
         try {
-            const { query, timeRange, tags, page, limit, communityId, lat, lng, radius } =
+            const { query, timeRange, tags, page, limit, communityId, lat, lng, radius, eventType } =
                 req.query;
 
             const sortBy = Array.isArray(req.query.sortBy)
@@ -42,6 +42,7 @@ class EventSearchController {
                     tags: parsedTags,
                     sortBy: ["distance", "relevance", "date"].includes(sortBy) ? sortBy : "distance",
                     communityId: communityId ? parseInt(communityId) : null,
+                    eventType: ["physical", "online", "hybrid"].includes(eventType) ? eventType : null,
                 };
 
                 result = await EventSearchModel.searchEventsWithProximity(proximityOptions);
@@ -55,6 +56,7 @@ class EventSearchController {
                     tags: parsedTags,
                     sortBy: sortBy === "relevance" ? "relevance" : "date",
                     communityId: communityId ? parseInt(communityId) : null,
+                    eventType: ["physical", "online", "hybrid"].includes(eventType) ? eventType : null,
                 };
 
                 result = await EventSearchModel.searchEvents(options);

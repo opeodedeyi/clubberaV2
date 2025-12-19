@@ -14,7 +14,9 @@ const pool = new Pool({
     database: DB_DATABASE,
     password: DB_PASSWORD,
     port: DB_PORT,
-    ssl: NODE_ENV === "production" ? { rejectUnauthorized: true } : false,
+    ssl: DB_HOST && DB_HOST.includes('neon.tech')
+        ? { rejectUnauthorized: true }
+        : (NODE_ENV === "production" ? { rejectUnauthorized: true } : false),
 });
 
 const executeTransaction = async (operations) => {

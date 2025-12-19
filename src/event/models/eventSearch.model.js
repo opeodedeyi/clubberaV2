@@ -202,6 +202,7 @@ class EventSearchModel {
                 tags = [], // Array of tag strings (not IDs anymore)
                 sortBy = "date", // 'date', 'relevance'
                 communityId = null, // Optional community filter
+                eventType = null, // 'physical', 'online', 'hybrid'
             } = options;
 
             const offset = (page - 1) * limit;
@@ -277,6 +278,13 @@ class EventSearchModel {
             if (communityId) {
                 sqlQuery += ` AND p.community_id = $${paramCounter}`;
                 params.push(communityId);
+                paramCounter++;
+            }
+
+            // Add event type filter if provided
+            if (eventType) {
+                sqlQuery += ` AND e.event_type = $${paramCounter}`;
+                params.push(eventType);
                 paramCounter++;
             }
 
@@ -385,6 +393,11 @@ class EventSearchModel {
                 countQuery += ` AND p.community_id = $1`;
             }
 
+            // Add event type filter if provided
+            if (eventType) {
+                countQuery += ` AND e.event_type = $${communityId ? 2 : 1}`;
+            }
+
             // Add search filter if provided
             if (query && query.trim() !== "") {
                 const searchTerm = `%${query.trim()}%`;
@@ -470,6 +483,7 @@ class EventSearchModel {
                 tags = [],
                 sortBy = "distance", // 'distance', 'date', 'relevance'
                 communityId = null,
+                eventType = null, // 'physical', 'online', 'hybrid'
             } = options;
 
             const offset = (page - 1) * limit;
@@ -575,6 +589,13 @@ class EventSearchModel {
             if (communityId) {
                 sqlQuery += ` AND p.community_id = $${paramCounter}`;
                 params.push(communityId);
+                paramCounter++;
+            }
+
+            // Add event type filter if provided
+            if (eventType) {
+                sqlQuery += ` AND e.event_type = $${paramCounter}`;
+                params.push(eventType);
                 paramCounter++;
             }
 
@@ -685,6 +706,12 @@ class EventSearchModel {
             if (communityId) {
                 countQuery += ` AND p.community_id = $${countParamCounter}`;
                 countParams.push(communityId);
+                countParamCounter++;
+            }
+
+            if (eventType) {
+                countQuery += ` AND e.event_type = $${countParamCounter}`;
+                countParams.push(eventType);
                 countParamCounter++;
             }
 
