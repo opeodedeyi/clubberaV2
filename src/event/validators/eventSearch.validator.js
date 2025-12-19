@@ -60,6 +60,11 @@ const validateEventSearch = [
         .isInt({ min: 1 })
         .withMessage("Community ID must be a positive integer"),
 
+    query("eventType")
+        .optional()
+        .isIn(["physical", "online", "hybrid"])
+        .withMessage("Event type must be one of: physical, online, hybrid"),
+
     checkValidationErrors,
 ];
 
